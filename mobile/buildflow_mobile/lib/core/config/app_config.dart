@@ -1,1 +1,8 @@
-// Scaffold: implement core/config/app_config.dart following plan/BuildFlow_AI_Mobile_App_Design.md.
+class AppConfig {
+  const AppConfig._();
+
+  static const apiBaseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'http://10.0.2.2:5144/api',
+  );
+}

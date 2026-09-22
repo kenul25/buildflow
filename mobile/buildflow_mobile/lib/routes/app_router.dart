@@ -1,1 +1,6 @@
-// Scaffold: implement routes/app_router.dart following plan/BuildFlow_AI_Mobile_App_Design.md.
+class AppRoutes {
+  const AppRoutes._();
+  static const login = '/login';
+  static const register = '/register';
+  static const home = '/home';
+}
