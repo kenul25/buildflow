@@ -1,0 +1,1 @@
+"""Scaffold: agents/inventory_agent.py. See plan/BuildFlow_AI_Complete_Workflow.md."""

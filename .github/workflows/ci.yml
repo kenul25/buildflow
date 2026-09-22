@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - run: dotnet restore backend/BuildFlow.Api/BuildFlow.Api.csproj
+      - run: dotnet build backend/BuildFlow.Api/BuildFlow.Api.csproj --no-restore --configuration Release
+      # Test projects will be discovered as feature tests are added.
+      - name: Run backend test projects
+        shell: pwsh
+        run: |
+          Get-ChildItem backend -Recurse -Filter '*Tests.csproj' | ForEach-Object {
+            dotnet test $_.FullName --configuration Release
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend/buildflow-web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/buildflow-web/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
