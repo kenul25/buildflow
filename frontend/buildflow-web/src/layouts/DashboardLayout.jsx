@@ -5,14 +5,14 @@ const navigationByRole = {
   ProjectManager: ['Projects', 'Scheduling', 'AI Workflows', 'Approvals', 'Reports'],
   InventoryOfficer: ['Materials', 'Warehouses', 'Stock', 'Reservations', 'Alerts'],
   ProcurementOfficer: ['Suppliers', 'Quotations', 'Purchase Requests', 'Purchase Orders', 'Deliveries'],
-  Administrator: ['Users', 'Roles', 'System Settings', 'Audit'],
+  Administrator: [{ label: 'Users & roles', to: '/admin' }, 'System Settings', 'Audit'],
   SiteEngineer: ['Projects', 'Requests', 'Progress', 'Approved Plans'],
 }
 
 export default function DashboardLayout() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
-  const items = [...new Set(user.roles.flatMap((role) => navigationByRole[role] ?? []))]
+  const items = user.roles.flatMap((role) => navigationByRole[role] ?? [])
   const handleLogout = async () => { await logout(); navigate('/login', { replace: true }) }
 
   return (
@@ -21,7 +21,9 @@ export default function DashboardLayout() {
         <NavLink className="brand brand-inverse" to="/dashboard"><span className="brand-mark">BF</span><span>BuildFlow <strong>AI</strong></span></NavLink>
         <nav aria-label="Dashboard navigation">
           <NavLink to="/dashboard">Overview</NavLink>
-          {items.map((item) => <span className="nav-placeholder" key={item}>{item}</span>)}
+          {items.map((item) => typeof item === 'string'
+            ? <span className="nav-placeholder" key={item}>{item}</span>
+            : <NavLink to={item.to} key={item.to}>{item.label}</NavLink>)}
         </nav>
         <button className="sidebar-logout" type="button" onClick={handleLogout}>Sign out</button>
       </aside>

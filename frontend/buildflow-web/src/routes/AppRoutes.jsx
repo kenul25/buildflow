@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import DashboardLayout from '../layouts/DashboardLayout.jsx'
 import PublicLayout from '../layouts/PublicLayout.jsx'
 import DashboardPage from '../pages/DashboardPage.jsx'
+import AdminDashboardPage from '../pages/AdminDashboardPage.jsx'
 import LandingPage from '../pages/LandingPage.jsx'
 import LoginPage from '../pages/LoginPage.jsx'
 import NotFoundPage from '../pages/NotFoundPage.jsx'
@@ -21,6 +22,9 @@ export default function AppRoutes() {
       <Route element={<ProtectedRoute />}>
         <Route element={<DashboardLayout />}>
           <Route path="dashboard" element={<DashboardPage />} />
+          <Route element={<ProtectedRoute roles={['Administrator']} />}>
+            <Route path="admin" element={<AdminDashboardPage />} />
+          </Route>
         </Route>
       </Route>
       <Route path="home" element={<Navigate to="/dashboard" replace />} />

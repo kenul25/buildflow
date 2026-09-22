@@ -18,8 +18,9 @@ export default function LoginPage() {
   const submit = async (event) => {
     event.preventDefault(); setError(''); setIsSubmitting(true)
     try {
-      await login({ email: form.email.trim(), password: form.password }, form.remember)
-      navigate(location.state?.from?.pathname ?? '/dashboard', { replace: true })
+      const signedInUser = await login({ email: form.email.trim(), password: form.password }, form.remember)
+      const defaultPath = signedInUser.roles.includes('Administrator') ? '/admin' : '/dashboard'
+      navigate(location.state?.from?.pathname ?? defaultPath, { replace: true })
     } catch (requestError) { setError(apiErrorMessage(requestError)) } finally { setIsSubmitting(false) }
   }
 
