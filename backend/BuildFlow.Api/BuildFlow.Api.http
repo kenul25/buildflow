@@ -1,6 +1,51 @@
 @BuildFlow.Api_HostAddress = http://localhost:5144
+@email = engineer@example.com
+@password = BuildFlow#2026
+@accessToken = paste-access-token
+@refreshToken = paste-refresh-token
 
 GET {{BuildFlow.Api_HostAddress}}/health
 Accept: application/json
+
+###
+
+POST {{BuildFlow.Api_HostAddress}}/api/auth/register
+Content-Type: application/json
+
+{
+  "fullName": "Site Engineer",
+  "email": "{{email}}",
+  "password": "{{password}}",
+  "confirmPassword": "{{password}}"
+}
+
+###
+
+POST {{BuildFlow.Api_HostAddress}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "password": "{{password}}"
+}
+
+###
+
+GET {{BuildFlow.Api_HostAddress}}/api/auth/me
+Authorization: Bearer {{accessToken}}
+
+###
+
+POST {{BuildFlow.Api_HostAddress}}/api/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refreshToken}}"
+}
+
+###
+
+POST {{BuildFlow.Api_HostAddress}}/api/auth/logout
+Authorization: Bearer {{accessToken}}
 
 ###
