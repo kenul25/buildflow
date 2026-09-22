@@ -10,6 +10,9 @@ public sealed class PasswordRequirementsAttribute : ValidationAttribute
 
     public override bool IsValid(object? value)
     {
+        if (value is null)
+            return true;
+
         if (value is not string password || password.Length < 8 || password.Length > 128)
             return false;
 
