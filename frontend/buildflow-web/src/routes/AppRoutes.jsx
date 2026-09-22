@@ -1,1 +1,30 @@
-// Scaffold: implement routes/AppRoutes.jsx following plan/BuildFlow_AI_React_Web_Design.md.
+import { Navigate, Route, Routes } from 'react-router-dom'
+import DashboardLayout from '../layouts/DashboardLayout.jsx'
+import PublicLayout from '../layouts/PublicLayout.jsx'
+import DashboardPage from '../pages/DashboardPage.jsx'
+import LandingPage from '../pages/LandingPage.jsx'
+import LoginPage from '../pages/LoginPage.jsx'
+import NotFoundPage from '../pages/NotFoundPage.jsx'
+import RegisterPage from '../pages/RegisterPage.jsx'
+import UnauthorizedPage from '../pages/UnauthorizedPage.jsx'
+import ProtectedRoute from './ProtectedRoute.jsx'
+
+export default function AppRoutes() {
+  return (
+    <Routes>
+      <Route element={<PublicLayout />}>
+        <Route index element={<LandingPage />} />
+        <Route path="login" element={<LoginPage />} />
+        <Route path="register" element={<RegisterPage />} />
+        <Route path="unauthorized" element={<UnauthorizedPage />} />
+      </Route>
+      <Route element={<ProtectedRoute />}>
+        <Route element={<DashboardLayout />}>
+          <Route path="dashboard" element={<DashboardPage />} />
+        </Route>
+      </Route>
+      <Route path="home" element={<Navigate to="/dashboard" replace />} />
+      <Route path="*" element={<NotFoundPage />} />
+    </Routes>
+  )
+}
