@@ -25,11 +25,25 @@ var jwtOptions = builder.Configuration.GetSection(JwtOptions.SectionName).Get<Jw
 jwtOptions.Validate();
 
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
+builder.Services.AddOptions<InitialAdminOptions>()
+    .Bind(builder.Configuration.GetSection(InitialAdminOptions.SectionName))
+    .Validate(
+        options => !string.IsNullOrWhiteSpace(options.Email) && options.Email.Contains('@'),
+        "InitialAdmin:Email must be a valid email address.")
+    .Validate(
+        options => options.Password.Length is >= 8 and <= 128 &&
+                   options.Password.Any(char.IsUpper) &&
+                   options.Password.Any(char.IsLower) &&
+                   options.Password.Any(char.IsDigit) &&
+                   options.Password.Any(character => !char.IsLetterOrDigit(character)),
+        "InitialAdmin:Password must contain uppercase, lowercase, number, and special characters.")
+    .ValidateOnStart();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddDbContext<BuildFlowDbContext>(options => options.UseNpgsql(connectionString));
 builder.Services.AddScoped<IPasswordService, PasswordService>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<AdminSeeder>();
 
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -105,6 +119,11 @@ builder.Services.AddCors(options => options.AddPolicy("WebClient", policy =>
 }));
 
 var app = builder.Build();
+
+await using (var scope = app.Services.CreateAsyncScope())
+{
+    await scope.ServiceProvider.GetRequiredService<AdminSeeder>().SeedAsync();
+}
 
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 if (app.Environment.IsDevelopment())
