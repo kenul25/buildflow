@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -37,6 +38,11 @@ class ApiService {
       );
     } on http.ClientException {
       throw const ApiException('Unable to reach the BuildFlow server.');
+    } on TimeoutException {
+      throw const ApiException(
+        'The BuildFlow server did not respond. Check that the backend is running '
+        'and that this device can reach it.',
+      );
     }
   }
 
