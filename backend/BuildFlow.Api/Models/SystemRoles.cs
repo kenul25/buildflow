@@ -9,4 +9,6 @@ public static class SystemRoles
     public const string Administrator = "Administrator";
     public static readonly string[] All =
         [SiteEngineer, InventoryOfficer, ProcurementOfficer, ProjectManager, Administrator];
+    public static readonly string[] AssignableByAdministrator =
+        [SiteEngineer, ProjectManager, InventoryOfficer, ProcurementOfficer];
 }

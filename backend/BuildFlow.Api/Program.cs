@@ -43,6 +43,7 @@ builder.Services.AddDbContext<BuildFlowDbContext>(options => options.UseNpgsql(c
 builder.Services.AddScoped<IPasswordService, PasswordService>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddScoped<AdminSeeder>();
 
 builder.Services
