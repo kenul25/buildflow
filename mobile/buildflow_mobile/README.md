@@ -2,13 +2,13 @@
 
 Android and iOS application for site operations.
 
-Run flutter pub get, then flutter run with an Android or iOS device.
+Run `flutter pub get`, then `flutter run` with an Android or iOS device.
 Validation: flutter analyze and flutter test. iOS builds require macOS and Xcode.
 
-main.dart is a minimal application shell. Other named Dart files are documented
-placeholders following the mobile design plan. Assets can be registered in
-pubspec.yaml when added. Theme persistence, authentication, storage and API
-integration are not implemented yet.
+The app restores sessions through a splash screen, supports registration and login,
+stores access/refresh tokens in platform secure storage, refreshes expired access
+tokens, protects the home shell, and revokes the session on logout. Light, dark,
+and system theme choices persist locally.
 
-.env.example documents future public configuration; no dotenv loader is installed.
-Use a backend address reachable from the device when implementing configuration.
+Set the API URL with `--dart-define=API_BASE_URL=...`. The Android emulator default
+is `http://10.0.2.2:5144/api`; a physical device needs an address it can reach.

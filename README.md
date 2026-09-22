@@ -21,22 +21,24 @@ Empty directories contain .gitkeep files so Git preserves the structure.
 
 ## Current scope
 
-Repository scaffold only. Starter weather/counter demos and Vite artwork were
-removed. Flutter desktop and web targets were removed; required Android/iOS project
-files, metadata, configuration and lockfiles are retained. Named placeholder files
-reserve the locations in the design documents without pretending features exist.
+The shared authentication foundation is implemented. The API persists users, roles,
+and hashed refresh tokens in PostgreSQL; issues short-lived JWT access tokens;
+rotates refresh tokens; invalidates sessions on logout; and exposes register, login,
+refresh, logout, and current-user endpoints. Public registration always assigns the
+restricted `SiteEngineer` role.
 
-The API exposes GET /health (process health only, not database readiness).
-React and Flutter launch minimal BuildFlow shells. Database configuration,
-authentication, business modules, AI execution and full interfaces remain for
-later milestones. Backend test discovery in CI becomes active when test projects
-named *Tests.csproj are added; no backend tests exist yet.
+React provides public authentication pages, startup session validation, automatic
+token refresh, protected routes, and role-aware navigation. Flutter provides the
+same flow with secure platform token storage, splash restoration, protected home
+navigation, and persisted light/dark/system themes. Business modules and Agentic AI
+execution remain for later milestones.
 
 ## Local development
 
 API (.NET 8 SDK):
 
     dotnet restore backend/BuildFlow.Api/BuildFlow.Api.csproj
+    dotnet ef database update --project backend/BuildFlow.Api
     dotnet run --project backend/BuildFlow.Api --launch-profile http
 
 Web (Node.js compatible with the installed Vite version):
@@ -50,6 +52,10 @@ Mobile (Flutter with Dart matching pubspec.yaml):
     cd mobile/buildflow_mobile
     flutter pub get
     flutter run
+
+Before production, set `ConnectionStrings__DefaultConnection` and `Jwt__Secret`
+through environment or secret configuration. The JWT secret must contain at least
+32 characters. Do not commit production credentials.
 
 See each app README for validation and configuration notes. .env.example files
 document future configuration; copy locally when implementing the loaders. Real
