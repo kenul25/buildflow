@@ -2,11 +2,11 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth.js'
 
 const navigationByRole = {
-  ProjectManager: ['Projects', 'Scheduling', 'AI Workflows', 'Approvals', 'Reports'],
+  ProjectManager: [{ label: 'Projects', to: '/construction/projects' }, { label: 'Sites', to: '/construction/sites' }, { label: 'Phases', to: '/construction/phases' }, { label: 'Activities', to: '/construction/activities' }, 'Scheduling', 'AI Workflows', 'Approvals', 'Reports'],
   InventoryOfficer: ['Materials', 'Warehouses', 'Stock', 'Reservations', 'Alerts'],
   ProcurementOfficer: ['Suppliers', 'Quotations', 'Purchase Requests', 'Purchase Orders', 'Deliveries'],
-  Administrator: [{ label: 'Users & roles', to: '/admin' }, 'System Settings', 'Audit'],
-  SiteEngineer: ['Projects', 'Requests', 'Progress', 'Approved Plans'],
+  Administrator: [{ label: 'Users & roles', to: '/admin' }, { label: 'Projects', to: '/construction/projects' }, { label: 'Sites', to: '/construction/sites' }, { label: 'Phases', to: '/construction/phases' }, { label: 'Activities', to: '/construction/activities' }, 'System Settings', 'Audit'],
+  SiteEngineer: [{ label: 'Projects', to: '/construction/projects' }, 'Requests', 'Progress', 'Approved Plans'],
 }
 
 export default function DashboardLayout() {
