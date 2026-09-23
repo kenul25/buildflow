@@ -2,15 +2,20 @@ import 'package:flutter/material.dart';
 
 import '../../providers/auth_provider.dart';
 import '../../providers/theme_provider.dart';
+import '../../services/project_service.dart';
+import '../projects/site_engineer_projects_screen.dart';
+import '../projects/site_requests_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({
     required this.authProvider,
     required this.themeProvider,
+    required this.projectService,
     super.key,
   });
   final AuthProvider authProvider;
   final ThemeProvider themeProvider;
+  final ProjectService projectService;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -66,6 +71,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _page() => switch (_index) {
     0 => _Overview(userName: widget.authProvider.user!.fullName),
+    1 => SiteEngineerProjectsScreen(service: widget.projectService),
+    2 => SiteRequestsScreen(service: widget.projectService),
     4 => _Profile(
       authProvider: widget.authProvider,
       themeProvider: widget.themeProvider,

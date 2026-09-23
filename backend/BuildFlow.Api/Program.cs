@@ -5,6 +5,7 @@ using BuildFlow.Api.Data;
 using BuildFlow.Api.Interfaces;
 using BuildFlow.Api.Middleware;
 using BuildFlow.Api.Services;
+using BuildFlow.Api.Repositories;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -44,6 +45,15 @@ builder.Services.AddScoped<IPasswordService, PasswordService>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
+builder.Services.AddScoped<IConstructionRepository, ConstructionRepository>();
+builder.Services.AddScoped<IConstructionService, ConstructionService>();
+builder.Services.AddScoped<IConstructionOperationsService, ConstructionOperationsService>();
+builder.Services.AddHttpClient<IPlanningClient, PlanningClient>(client =>
+{
+    client.BaseAddress = new Uri(builder.Configuration["Planning:BaseUrl"] ?? "http://127.0.0.1:8000/");
+    // Python permits three 30-second model attempts plus short retry delays.
+    client.Timeout = TimeSpan.FromSeconds(100);
+});
 builder.Services.AddScoped<AdminSeeder>();
 
 builder.Services

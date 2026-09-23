@@ -6,6 +6,7 @@
 # ASP.NET Core / .NET
 **/bin/
 **/obj/
+backend/BuildFlow.Api/uploads/
 .vs/
 
 # React / Node
@@ -34,7 +35,10 @@ Thumbs.db
 *.log
 
 # Project planning files
-#/plan/
+/plan/
 
-# Backend test project
+# Local alternate .NET build output
+**/bin-member01/
+
+# BuildFlow API tests stay local on this feature branch
 backend/BuildFlow.Api.Tests/

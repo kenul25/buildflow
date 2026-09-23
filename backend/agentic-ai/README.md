@@ -1,11 +1,15 @@
-# BuildFlow AI agent service
+# BuildFlow internal Planning Agent
 
-Scaffold only. The named agents, tools, schemas, validator and workflow modules
-follow the complete workflow plan. No AI framework or HTTP server is selected yet.
-requirements.txt deliberately contains no dependencies.
+Member 01's private FastAPI service accepts a validated construction resource request from ASP.NET Core and uses LangGraph to run a controlled planning workflow. Gemini `gemini-3.5-flash-lite` proposes a Pydantic structured plan. Application code validates its schema and business rules, then creates the existing version 1.0 downstream tasks. Gemini has no tool, database, or execution permissions.
 
-ASP.NET Core is the only client of this internal service. React and Flutter call
-ASP.NET Core. Agents propose plans; the backend validates them and requires manager
-approval before committing resource allocations or procurement.
+## Run locally
 
-Copy .env.example to .env when implementing configuration. Never commit secrets.
+From `backend/agentic-ai`, create a Python 3.12 environment and install `requirements.txt`. For local development, copy `.env.example` to `.env` and replace `BUILDFLOW_INTERNAL_KEY` with a long random secret and `GEMINI_API_KEY` with the Gemini API key. The service loads this local file automatically; process environment variables take precedence. Set ASP.NET Core `Planning__InternalKey` to the **same value** as Python's `BUILDFLOW_INTERNAL_KEY`. Keep `GEMINI_MODEL=gemini-3.5-flash-lite`. Run `python main.py`; Uvicorn listens on `127.0.0.1:8000` by default. Configure ASP.NET Core `Planning__BaseUrl` to this private listener. `.env` is gitignored. Never put either key in React, Flutter, client environment files, logs, or source control.
+
+The service accepts `POST /internal/plans` with `X-BuildFlow-Key`. The JSON input is `PlanningRequest` in `schemas/planning_schema.py`: workflow, request, project, site and activity UUIDs; objective; optional names, address, dates and budget; and 1–50 typed resource items. The success response keeps `schemaVersion=1.0`, `status=AwaitingAgents`, `analysis`, ordered `steps`, three `tasks`, and `approvalRequired=true`. It adds `executionSummary` with timing, validation result, retry count, safe error categories, final status and LangGraph node events. Invalid model proposals return HTTP 422; model, configuration and timeout failures return HTTP 503. Both failure responses contain a safe execution summary. Invalid input returns HTTP 422 before any model call.
+
+The proposal schema is deliberately narrower than the accepted wire plan. Gemini may supply analysis and descriptive steps, plus exactly three typed task proposals. Trusted code generates task IDs, inputs and dependencies. Its proposal allowlist is `InventoryAnalysisAgent`, `ProcurementAgent`, and `SchedulingValidationAgent`. The first is materialized as the existing version 1.0 wire name `InventoryAgent`, preserving the ASP.NET agent-result endpoint and Member 02 integration. No downstream agent is called by this service. Task outputs still enter through the existing ASP.NET Core `agent-results` endpoint.
+
+The LangGraph path is `call_gemini → validate_proposal → materialize_tasks`. Recoverable model failures pass through `retry_delay`; exhausted or invalid proposals enter `safe_failure`. Application code enforces timeout and bounded retries. Approval and high-impact execution remain outside this service and must be performed only after deterministic backend validation and authorized manager approval. ASP.NET Core stores the accepted plan or failure summary in the existing workflow JSON column and preserves prior summaries when a failed workflow is retried. No migration is required.
+
+Run independent tests with `python -m unittest discover -s tests -v`. Tests use an injected fake Gemini gateway and never need a real API key. See `ADR-001-llm-planning.md` and `backend/BuildFlow.Api/MEMBER01.md` for design and integration details.
