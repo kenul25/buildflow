@@ -10,17 +10,19 @@ import 'screens/home/home_screen.dart';
 import 'screens/splash/splash_screen.dart';
 import 'services/api_service.dart';
 import 'services/auth_service.dart';
+import 'services/project_service.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   final secureStorage = SecureStorage();
+  final apiService = ApiService(secureStorage);
   final authProvider = AuthProvider(
-    AuthService(ApiService(secureStorage)),
+    AuthService(apiService),
     secureStorage,
   );
   final themeProvider = ThemeProvider(PreferenceStorage());
   runApp(
-    BuildFlowApp(authProvider: authProvider, themeProvider: themeProvider),
+    BuildFlowApp(authProvider: authProvider, themeProvider: themeProvider, projectService: ProjectService(apiService)),
   );
 }
 
@@ -28,10 +30,12 @@ class BuildFlowApp extends StatefulWidget {
   const BuildFlowApp({
     required this.authProvider,
     required this.themeProvider,
+    required this.projectService,
     super.key,
   });
   final AuthProvider authProvider;
   final ThemeProvider themeProvider;
+  final ProjectService projectService;
 
   @override
   State<BuildFlowApp> createState() => _BuildFlowAppState();
@@ -63,6 +67,7 @@ class _BuildFlowAppState extends State<BuildFlowApp> {
           AuthStatus.authenticated => HomeScreen(
             authProvider: widget.authProvider,
             themeProvider: widget.themeProvider,
+            projectService: widget.projectService,
           ),
         },
       ),

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 
 import '../core/config/app_config.dart';
 import '../core/storage/secure_storage.dart';
@@ -43,6 +44,23 @@ class ApiService {
         'The BuildFlow server did not respond. Check that the backend is running '
         'and that this device can reach it.',
       );
+    }
+  }
+
+  Future<dynamic> upload(String path, String filePath) async {
+    try {
+      final token = await _storage.readAccessToken();
+      final request = http.MultipartRequest('POST', Uri.parse('${AppConfig.apiBaseUrl}$path'));
+      if (token != null) request.headers['Authorization'] = 'Bearer $token';
+      final extension = filePath.toLowerCase().split('.').last;
+      final subtype = extension == 'png' ? 'png' : extension == 'webp' ? 'webp' : 'jpeg';
+      request.files.add(await http.MultipartFile.fromPath('file', filePath, contentType: MediaType('image', subtype)));
+      final response = await http.Response.fromStream(await _client.send(request).timeout(const Duration(seconds: 30)));
+      return _decode(response);
+    } on SocketException {
+      throw const ApiException('No internet connection. Check your network and try again.');
+    } on TimeoutException {
+      throw const ApiException('Photo upload timed out. Please try again.');
     }
   }
 

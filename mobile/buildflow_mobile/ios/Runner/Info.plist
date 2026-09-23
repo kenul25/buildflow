@@ -48,6 +48,10 @@
 		</dict>
 	</dict>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
+	<key>NSCameraUsageDescription</key>
+	<string>Site engineers attach photos to construction activities.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Site engineers attach photos to construction activities.</string>
 	<true/>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
