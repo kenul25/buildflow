@@ -18,6 +18,10 @@ public sealed class BuildFlowDbContext(DbContextOptions<BuildFlowDbContext> opti
     public DbSet<ResourceRequest> ResourceRequests => Set<ResourceRequest>();
     public DbSet<ResourceRequestItem> ResourceRequestItems => Set<ResourceRequestItem>();
     public DbSet<PlanningWorkflow> PlanningWorkflows => Set<PlanningWorkflow>();
+    public DbSet<Warehouse> Warehouses => Set<Warehouse>();
+    public DbSet<Material> Materials => Set<Material>();
+    public DbSet<InventoryReservation> InventoryReservations => Set<InventoryReservation>();
+    public DbSet<StockMovement> StockMovements => Set<StockMovement>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -87,6 +91,47 @@ public sealed class BuildFlowDbContext(DbContextOptions<BuildFlowDbContext> opti
         modelBuilder.Entity<PlanningWorkflow>().HasOne(w => w.ResourceRequest).WithMany().HasForeignKey(w => w.ResourceRequestId).OnDelete(DeleteBehavior.Restrict);
         modelBuilder.Entity<PlanningWorkflow>().HasIndex(w => w.ResourceRequestId).IsUnique();
 
+        var warehouse = modelBuilder.Entity<Warehouse>();
+        warehouse.ToTable("Warehouses");
+        warehouse.HasKey(w => w.Id);
+        warehouse.Property(w => w.Name).HasMaxLength(160).IsRequired();
+        warehouse.Property(w => w.Location).HasMaxLength(500);
+        warehouse.HasIndex(w => w.Name).IsUnique();
+
+        var material = modelBuilder.Entity<Material>();
+        material.ToTable("Materials", table =>
+        {
+            table.HasCheckConstraint("CK_Materials_NonNegativeStock", "\"CurrentStock\" >= 0 AND \"ReservedStock\" >= 0");
+            table.HasCheckConstraint("CK_Materials_ReservedStockWithinCurrent", "\"ReservedStock\" <= \"CurrentStock\"");
+        });
+        material.HasKey(m => m.Id);
+        material.Property(m => m.Name).HasMaxLength(160).IsRequired();
+        material.Property(m => m.Category).HasMaxLength(80).IsRequired();
+        material.Property(m => m.Unit).HasMaxLength(32).IsRequired();
+        material.Property(m => m.UnitPrice).HasPrecision(18, 2);
+        material.Property(m => m.CurrentStock).HasPrecision(18, 3);
+        material.Property(m => m.ReservedStock).HasPrecision(18, 3);
+        material.HasIndex(m => new { m.Name, m.Unit, m.WarehouseId }).IsUnique();
+        material.HasOne(m => m.Warehouse).WithMany(w => w.Materials).HasForeignKey(m => m.WarehouseId).OnDelete(DeleteBehavior.Restrict);
+
+        var reservation = modelBuilder.Entity<InventoryReservation>();
+        reservation.ToTable("InventoryReservations");
+        reservation.HasKey(r => r.Id);
+        reservation.Property(r => r.Status).HasMaxLength(32).IsRequired();
+        reservation.Property(r => r.Quantity).HasPrecision(18, 3);
+        reservation.HasIndex(r => new { r.MaterialId, r.Status });
+        reservation.HasOne(r => r.Material).WithMany().HasForeignKey(r => r.MaterialId).OnDelete(DeleteBehavior.Restrict);
+
+        var movement = modelBuilder.Entity<StockMovement>();
+        movement.ToTable("StockMovements");
+        movement.HasKey(m => m.Id);
+        movement.Property(m => m.Type).HasMaxLength(32).IsRequired();
+        movement.Property(m => m.Quantity).HasPrecision(18, 3);
+        movement.Property(m => m.StockAfter).HasPrecision(18, 3);
+        movement.Property(m => m.Reference).HasMaxLength(200);
+        movement.HasIndex(m => new { m.MaterialId, m.CreatedAt });
+        movement.HasOne(m => m.Material).WithMany().HasForeignKey(m => m.MaterialId).OnDelete(DeleteBehavior.Restrict);
+
         var seededAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
         var roleIds = new[]
         {
@@ -108,6 +153,7 @@ public sealed class BuildFlowDbContext(DbContextOptions<BuildFlowDbContext> opti
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
+        ValidateMaterials();
         var now = DateTimeOffset.UtcNow;
         foreach (var entry in ChangeTracker.Entries<BaseEntity>())
         {
@@ -123,5 +169,17 @@ public sealed class BuildFlowDbContext(DbContextOptions<BuildFlowDbContext> opti
         }
 
         return base.SaveChangesAsync(cancellationToken);
+    }
+
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        ValidateMaterials();
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    private void ValidateMaterials()
+    {
+        foreach (var entry in ChangeTracker.Entries<Material>().Where(entry => entry.State is EntityState.Added or EntityState.Modified))
+            entry.Entity.ValidateStock();
     }
 }
