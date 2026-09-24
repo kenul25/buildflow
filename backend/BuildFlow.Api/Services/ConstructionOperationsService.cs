@@ -139,9 +139,17 @@ public sealed class ConstructionOperationsService(BuildFlowDbContext db, IPlanni
         var attemptStarted = DateTimeOffset.UtcNow;
         try
         {
+            var inventorySnapshot = await db.Materials.AsNoTracking().Select(material => new
+            {
+                materialId = material.Id,
+                material.Name,
+                material.Unit,
+                currentStock = material.CurrentStock,
+                reservedStock = material.ReservedStock
+            }).ToListAsync(ct);
             var result = await planner.PlanAsync(new { workflowId = workflow.Id, requestId = request.Id, request.ProjectId, request.SiteId, request.ActivityId, request.Objective, request.RequiredBy, request.BudgetLimit,
                 projectName = request.Project.Name, siteName = request.Site.Name, siteAddress = request.Site.Address, activityName = request.Activity.Name, activityDueDate = request.Activity.DueDate,
-                items = request.Items.Select(i => new { i.Kind, i.Name, i.Quantity, i.Unit }) }, ct);
+                items = request.Items.Select(i => new { i.Kind, i.Name, i.Quantity, i.Unit }), inventorySnapshot }, ct);
             if (!result.TryGetProperty("schemaVersion", out var version) || version.GetString() != "1.0" ||
                 !result.TryGetProperty("workflowId", out var workflowId) || workflowId.GetString() != workflow.Id.ToString() ||
                 !result.TryGetProperty("status", out var status) || status.GetString() != "AwaitingAgents" ||

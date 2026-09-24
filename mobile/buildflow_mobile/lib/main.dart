@@ -7,10 +7,12 @@ import 'providers/auth_provider.dart';
 import 'providers/theme_provider.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/home/home_screen.dart';
+import 'screens/inventory/inventory_screen.dart';
 import 'screens/splash/splash_screen.dart';
 import 'services/api_service.dart';
 import 'services/auth_service.dart';
 import 'services/project_service.dart';
+import 'services/inventory_service.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -22,7 +24,7 @@ void main() {
   );
   final themeProvider = ThemeProvider(PreferenceStorage());
   runApp(
-    BuildFlowApp(authProvider: authProvider, themeProvider: themeProvider, projectService: ProjectService(apiService)),
+    BuildFlowApp(authProvider: authProvider, themeProvider: themeProvider, projectService: ProjectService(apiService), inventoryService: InventoryService(apiService)),
   );
 }
 
@@ -31,11 +33,13 @@ class BuildFlowApp extends StatefulWidget {
     required this.authProvider,
     required this.themeProvider,
     required this.projectService,
+    required this.inventoryService,
     super.key,
   });
   final AuthProvider authProvider;
   final ThemeProvider themeProvider;
   final ProjectService projectService;
+  final InventoryService inventoryService;
 
   @override
   State<BuildFlowApp> createState() => _BuildFlowAppState();
@@ -68,6 +72,7 @@ class _BuildFlowAppState extends State<BuildFlowApp> {
             authProvider: widget.authProvider,
             themeProvider: widget.themeProvider,
             projectService: widget.projectService,
+            inventoryService: widget.inventoryService,
           ),
         },
       ),
