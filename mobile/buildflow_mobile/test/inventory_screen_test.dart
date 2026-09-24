@@ -6,6 +6,18 @@ import 'package:flutter_test/flutter_test.dart';
 class EmptyInventoryService extends Fake implements InventoryService {
   @override
   Future<List<Map<String, dynamic>>> materials({String? search}) async => [];
+
+  @override
+  Future<List<Map<String, dynamic>>> warehouses() async => [];
+
+  @override
+  Future<List<Map<String, dynamic>>> reservations() async => [];
+
+  @override
+  Future<List<Map<String, dynamic>>> movements() async => [];
+
+  @override
+  Future<List<Map<String, dynamic>>> alerts() async => [];
 }
 
 void main() {

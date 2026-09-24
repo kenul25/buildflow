@@ -19,7 +19,7 @@ class ApiService {
   Future<dynamic> request(
     String method,
     String path, {
-    Map<String, dynamic>? body,
+    Object? body,
     bool authenticated = true,
   }) async {
     try {
@@ -67,7 +67,7 @@ class ApiService {
   Future<http.Response> _send(
     String method,
     String path, {
-    Map<String, dynamic>? body,
+    Object? body,
     required bool authenticated,
   }) async {
     final request =
