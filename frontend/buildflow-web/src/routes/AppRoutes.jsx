@@ -10,6 +10,7 @@ import RegisterPage from '../pages/RegisterPage.jsx'
 import UnauthorizedPage from '../pages/UnauthorizedPage.jsx'
 import ProtectedRoute from './ProtectedRoute.jsx'
 import { ConstructionListPage, ConstructionDetailsPage, ConstructionFormPage } from '../features/construction/ConstructionPage.jsx'
+import InventoryPage from '../features/inventory/InventoryPage.jsx'
 
 export default function AppRoutes() {
   return (
@@ -23,6 +24,7 @@ export default function AppRoutes() {
       <Route element={<ProtectedRoute />}>
         <Route element={<DashboardLayout />}>
           <Route path="dashboard" element={<DashboardPage />} />
+          <Route path="inventory" element={<InventoryPage />} />
           <Route path="construction/:kind" element={<ConstructionListPage />} />
           <Route path="construction/:kind/:id" element={<ConstructionDetailsPage />} />
           <Route element={<ProtectedRoute roles={['Administrator', 'ProjectManager']} />}>

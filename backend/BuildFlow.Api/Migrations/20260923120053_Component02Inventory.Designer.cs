@@ -3,6 +3,7 @@ using System;
 using BuildFlow.Api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace BuildFlow.Api.Migrations
 {
     [DbContext(typeof(BuildFlowDbContext))]
-    partial class BuildFlowDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260923120053_Component02Inventory")]
+    partial class Component02Inventory
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -706,48 +709,6 @@ namespace BuildFlow.Api.Migrations
                     b.ToTable("SitePhotos");
                 });
 
-            modelBuilder.Entity("BuildFlow.Api.Models.StockMovement", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("ActorId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("MaterialId")
-                        .HasColumnType("uuid");
-
-                    b.Property<decimal>("Quantity")
-                        .HasPrecision(18, 3)
-                        .HasColumnType("numeric(18,3)");
-
-                    b.Property<string>("Reference")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<decimal>("StockAfter")
-                        .HasPrecision(18, 3)
-                        .HasColumnType("numeric(18,3)");
-
-                    b.Property<string>("Type")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("MaterialId", "CreatedAt");
-
-                    b.ToTable("StockMovements", (string)null);
-                });
-
             modelBuilder.Entity("BuildFlow.Api.Models.UserRole", b =>
                 {
                     b.Property<Guid>("UserId")
@@ -937,17 +898,6 @@ namespace BuildFlow.Api.Migrations
                         .IsRequired();
 
                     b.Navigation("Activity");
-                });
-
-            modelBuilder.Entity("BuildFlow.Api.Models.StockMovement", b =>
-                {
-                    b.HasOne("BuildFlow.Api.Models.Material", "Material")
-                        .WithMany()
-                        .HasForeignKey("MaterialId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Material");
                 });
 
             modelBuilder.Entity("BuildFlow.Api.Models.UserRole", b =>

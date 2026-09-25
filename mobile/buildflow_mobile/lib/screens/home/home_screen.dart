@@ -3,19 +3,23 @@ import 'package:flutter/material.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/theme_provider.dart';
 import '../../services/project_service.dart';
+import '../../services/inventory_service.dart';
 import '../projects/site_engineer_projects_screen.dart';
 import '../projects/site_requests_screen.dart';
+import '../inventory/inventory_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({
     required this.authProvider,
     required this.themeProvider,
     required this.projectService,
+    required this.inventoryService,
     super.key,
   });
   final AuthProvider authProvider;
   final ThemeProvider themeProvider;
   final ProjectService projectService;
+  final InventoryService inventoryService;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -26,15 +30,15 @@ class _HomeScreenState extends State<HomeScreen> {
   static const _labels = [
     'Home',
     'Projects',
+    'Materials',
     'Requests',
-    'Notifications',
     'Profile',
   ];
   static const _icons = [
     Icons.home_outlined,
     Icons.apartment_outlined,
+    Icons.inventory_2_outlined,
     Icons.add_box_outlined,
-    Icons.notifications_none,
     Icons.person_outline,
   ];
 
@@ -48,7 +52,7 @@ class _HomeScreenState extends State<HomeScreen> {
       actions: _index == 0
           ? [
               IconButton(
-                onPressed: () => setState(() => _index = 3),
+                onPressed: () => setState(() => _index = 2),
                 icon: const Icon(Icons.notifications_none),
                 tooltip: 'Notifications',
               ),
@@ -72,7 +76,8 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _page() => switch (_index) {
     0 => _Overview(userName: widget.authProvider.user!.fullName),
     1 => SiteEngineerProjectsScreen(service: widget.projectService),
-    2 => SiteRequestsScreen(service: widget.projectService),
+    2 => InventoryScreen(service: widget.inventoryService),
+    3 => SiteRequestsScreen(service: widget.projectService),
     4 => _Profile(
       authProvider: widget.authProvider,
       themeProvider: widget.themeProvider,

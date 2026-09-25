@@ -28,6 +28,20 @@ class ResourceItem(WireModel):
         return value
 
 
+class InventorySnapshotItem(WireModel):
+    materialId: str | None = Field(default=None, max_length=128)
+    name: str = Field(min_length=2, max_length=160)
+    unit: str = Field(min_length=1, max_length=32)
+    currentStock: Decimal = Field(ge=0, le=999999999, allow_inf_nan=False)
+    reservedStock: Decimal = Field(ge=0, le=999999999, allow_inf_nan=False)
+
+    @model_validator(mode="after")
+    def reserved_within_current(self) -> "InventorySnapshotItem":
+        if self.reservedStock > self.currentStock:
+            raise ValueError("reservedStock cannot exceed currentStock")
+        return self
+
+
 class PlanningRequest(WireModel):
     workflowId: UUID
     requestId: UUID
@@ -43,6 +57,7 @@ class PlanningRequest(WireModel):
     activityName: str | None = Field(default=None, max_length=160)
     activityDueDate: date | None = None
     items: list[ResourceItem] = Field(min_length=1, max_length=50)
+    inventorySnapshot: list[InventorySnapshotItem] = Field(default_factory=list, max_length=10000)
 
     @field_validator("objective")
     @classmethod

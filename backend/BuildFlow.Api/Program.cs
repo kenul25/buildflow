@@ -61,8 +61,11 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
 
 builder.Services.AddScoped<IConstructionRepository, ConstructionRepository>();
+builder.Services.AddScoped<IInventoryRepository, InventoryRepository>();
 builder.Services.AddScoped<IConstructionService, ConstructionService>();
 builder.Services.AddScoped<IConstructionOperationsService, ConstructionOperationsService>();
+builder.Services.AddScoped<IInventoryService, InventoryService>();
+builder.Services.AddScoped<InventoryAnalysisAgent>();
 
 builder.Services.AddHttpClient<IPlanningClient, PlanningClient>(client =>
 {

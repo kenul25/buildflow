@@ -102,6 +102,7 @@ def materialize_plan(request: PlanningRequest, proposal: ProposedPlan) -> Accept
         "requiredBy": request.requiredBy.isoformat() if request.requiredBy else None,
         "budgetLimit": float(request.budgetLimit) if request.budgetLimit is not None else None,
         "analysis": analysis,
+        "inventorySnapshot": [item.model_dump(mode="json") for item in request.inventorySnapshot],
     }
     inventory_id, procurement_id, scheduling_id = (str(uuid4()) for _ in range(3))
     material_items = [item for item in items if item["kind"] == "Material"]
