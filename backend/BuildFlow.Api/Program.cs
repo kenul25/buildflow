@@ -13,23 +13,27 @@ using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Console/debug logging is predictable for local development and CI. The default
-// Windows Event Log provider can fail for non-administrator developer accounts.
+// Console/debug logging is predictable for local development and CI.
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
 builder.Logging.AddDebug();
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException("ConnectionStrings:DefaultConnection is required.");
+
 var jwtOptions = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>()
     ?? throw new InvalidOperationException("JWT configuration is required.");
+
 jwtOptions.Validate();
 
-builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
+builder.Services.Configure<JwtOptions>(
+    builder.Configuration.GetSection(JwtOptions.SectionName));
+
 builder.Services.AddOptions<InitialAdminOptions>()
     .Bind(builder.Configuration.GetSection(InitialAdminOptions.SectionName))
     .Validate(
-        options => !string.IsNullOrWhiteSpace(options.Email) && options.Email.Contains('@'),
+        options => !string.IsNullOrWhiteSpace(options.Email) &&
+                   options.Email.Contains('@'),
         "InitialAdmin:Email must be a valid email address.")
     .Validate(
         options => options.Password.Length is >= 8 and <= 128 &&
@@ -39,26 +43,42 @@ builder.Services.AddOptions<InitialAdminOptions>()
                    options.Password.Any(character => !char.IsLetterOrDigit(character)),
         "InitialAdmin:Password must contain uppercase, lowercase, number, and special characters.")
     .ValidateOnStart();
+
 builder.Services.AddSingleton(TimeProvider.System);
-builder.Services.AddDbContext<BuildFlowDbContext>(options => options.UseNpgsql(connectionString));
+
+// Main BuildFlow database
+builder.Services.AddDbContext<BuildFlowDbContext>(options =>
+    options.UseNpgsql(connectionString));
+
+// Procurement database context
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseNpgsql(connectionString));
+
+// Services
 builder.Services.AddScoped<IPasswordService, PasswordService>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
+
 builder.Services.AddScoped<IConstructionRepository, ConstructionRepository>();
 builder.Services.AddScoped<IInventoryRepository, InventoryRepository>();
 builder.Services.AddScoped<IConstructionService, ConstructionService>();
 builder.Services.AddScoped<IConstructionOperationsService, ConstructionOperationsService>();
 builder.Services.AddScoped<IInventoryService, InventoryService>();
 builder.Services.AddScoped<InventoryAnalysisAgent>();
+
 builder.Services.AddHttpClient<IPlanningClient, PlanningClient>(client =>
 {
-    client.BaseAddress = new Uri(builder.Configuration["Planning:BaseUrl"] ?? "http://127.0.0.1:8000/");
-    // Python permits three 30-second model attempts plus short retry delays.
+    client.BaseAddress = new Uri(
+        builder.Configuration["Planning:BaseUrl"]
+        ?? "http://127.0.0.1:8000/");
+
     client.Timeout = TimeSpan.FromSeconds(100);
 });
+
 builder.Services.AddScoped<AdminSeeder>();
 
+// Authentication
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -67,21 +87,33 @@ builder.Services
         {
             ValidateIssuer = true,
             ValidIssuer = jwtOptions.Issuer,
+
             ValidateAudience = true,
             ValidAudience = jwtOptions.Audience,
+
             ValidateIssuerSigningKey = true,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.Secret)),
+            IssuerSigningKey = new SymmetricSecurityKey(
+                Encoding.UTF8.GetBytes(jwtOptions.Secret)),
+
             ValidateLifetime = true,
             ClockSkew = TimeSpan.FromSeconds(30),
+
             NameClaimType = ClaimTypes.Name,
             RoleClaimType = ClaimTypes.Role
         };
+
         options.Events = new JwtBearerEvents
         {
             OnTokenValidated = async context =>
             {
-                var userIdValue = context.Principal?.FindFirstValue(ClaimTypes.NameIdentifier);
-                var tokenVersionValue = context.Principal?.FindFirstValue(BuildFlowClaimTypes.TokenVersion);
+                var userIdValue =
+                    context.Principal?.FindFirstValue(
+                        ClaimTypes.NameIdentifier);
+
+                var tokenVersionValue =
+                    context.Principal?.FindFirstValue(
+                        BuildFlowClaimTypes.TokenVersion);
+
                 if (!Guid.TryParse(userIdValue, out var userId) ||
                     !int.TryParse(tokenVersionValue, out var tokenVersion))
                 {
@@ -89,10 +121,19 @@ builder.Services
                     return;
                 }
 
-                var dbContext = context.HttpContext.RequestServices.GetRequiredService<BuildFlowDbContext>();
-                var user = await dbContext.Users.AsNoTracking()
-                    .SingleOrDefaultAsync(item => item.Id == userId, context.HttpContext.RequestAborted);
-                if (user is null || !user.IsActive || user.TokenVersion != tokenVersion)
+                var dbContext =
+                    context.HttpContext.RequestServices
+                        .GetRequiredService<BuildFlowDbContext>();
+
+                var user = await dbContext.Users
+                    .AsNoTracking()
+                    .SingleOrDefaultAsync(
+                        item => item.Id == userId,
+                        context.HttpContext.RequestAborted);
+
+                if (user is null ||
+                    !user.IsActive ||
+                    user.TokenVersion != tokenVersion)
                 {
                     context.Fail("The session is no longer valid.");
                 }
@@ -101,45 +142,76 @@ builder.Services
     });
 
 builder.Services.AddAuthorization();
+
 builder.Services.AddControllers();
+
 builder.Services.AddEndpointsApiExplorer();
+
 builder.Services.AddSwaggerGen(options =>
 {
-    options.SwaggerDoc("v1", new OpenApiInfo { Title = "BuildFlow API", Version = "v1" });
-    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
-    {
-        Name = "Authorization",
-        Type = SecuritySchemeType.Http,
-        Scheme = "bearer",
-        BearerFormat = "JWT",
-        In = ParameterLocation.Header
-    });
-    options.AddSecurityRequirement(new OpenApiSecurityRequirement
-    {
-        [new OpenApiSecurityScheme
+    options.SwaggerDoc(
+        "v1",
+        new OpenApiInfo
         {
-            Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" }
-        }] = Array.Empty<string>()
-    });
+            Title = "BuildFlow API",
+            Version = "v1"
+        });
+
+    options.AddSecurityDefinition(
+        "Bearer",
+        new OpenApiSecurityScheme
+        {
+            Name = "Authorization",
+            Type = SecuritySchemeType.Http,
+            Scheme = "bearer",
+            BearerFormat = "JWT",
+            In = ParameterLocation.Header
+        });
+
+    options.AddSecurityRequirement(
+        new OpenApiSecurityRequirement
+        {
+            [new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            }] = Array.Empty<string>()
+        });
 });
 
-var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
-builder.Services.AddCors(options => options.AddPolicy("WebClient", policy =>
-{
-    if (allowedOrigins.Length > 0)
+// CORS
+var allowedOrigins =
+    builder.Configuration
+        .GetSection("Cors:AllowedOrigins")
+        .Get<string[]>() ?? [];
+
+builder.Services.AddCors(options =>
+    options.AddPolicy("WebClient", policy =>
     {
-        policy.WithOrigins(allowedOrigins).AllowAnyHeader().AllowAnyMethod();
-    }
-}));
+        if (allowedOrigins.Length > 0)
+        {
+            policy
+                .WithOrigins(allowedOrigins)
+                .AllowAnyHeader()
+                .AllowAnyMethod();
+        }
+    }));
 
 var app = builder.Build();
 
+// Seed initial admin
 await using (var scope = app.Services.CreateAsyncScope())
 {
-    await scope.ServiceProvider.GetRequiredService<AdminSeeder>().SeedAsync();
+    await scope.ServiceProvider
+        .GetRequiredService<AdminSeeder>()
+        .SeedAsync();
 }
 
 app.UseMiddleware<ExceptionHandlingMiddleware>();
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -150,11 +222,17 @@ if (!app.Environment.IsDevelopment())
 {
     app.UseHttpsRedirection();
 }
+
 app.UseCors("WebClient");
+
 app.UseAuthentication();
 app.UseAuthorization();
+
 app.MapControllers();
-app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
+
+app.MapGet(
+    "/health",
+    () => Results.Ok(new { status = "ok" }));
 
 app.Run();
 
