@@ -3,12 +3,13 @@ using BuildFlow.Api.DTOs;
 using BuildFlow.Api.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-
+using Microsoft.AspNetCore.Authorization;
 
 namespace BuildFlow.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize(Roles = "ProcurementOfficer,ProjectManager,Administrator")]
 public class SuppliersController : ControllerBase
 {
     private readonly AppDbContext _context;

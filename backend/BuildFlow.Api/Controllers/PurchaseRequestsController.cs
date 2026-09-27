@@ -1,5 +1,7 @@
 using BuildFlow.Api.Data;
 using BuildFlow.Api.DTOs;
+using BuildFlow.Api.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -7,6 +9,7 @@ namespace BuildFlow.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize(Roles = "ProcurementOfficer,ProjectManager,Administrator")]
 public class PurchaseRequestsController : ControllerBase
 {
     private readonly AppDbContext _context;
@@ -16,6 +19,7 @@ public class PurchaseRequestsController : ControllerBase
         _context = context;
     }
 
+    // CREATE
     [HttpPost]
     public async Task<IActionResult> CreatePurchaseRequest(
         CreatePurchaseRequestRequest request)
@@ -44,29 +48,83 @@ public class PurchaseRequestsController : ControllerBase
             });
         }
 
-        var purchaseRequest = new BuildFlow.Api.Models.PurchaseRequest
+        var purchaseRequest = new PurchaseRequest
         {
-            MaterialName = request.MaterialName,
+            MaterialName = request.MaterialName.Trim(),
             Quantity = request.Quantity,
-            RequiredByDate = request.RequiredByDate
+            RequiredByDate = request.RequiredByDate,
+            Status = "Pending"
         };
 
         _context.PurchaseRequests.Add(purchaseRequest);
 
         await _context.SaveChangesAsync();
 
-        return Ok(purchaseRequest);
+        return CreatedAtAction(
+            nameof(GetPurchaseRequest),
+            new { id = purchaseRequest.Id },
+            purchaseRequest);
     }
 
+    // GET ALL
     [HttpGet]
-    public async Task<IActionResult> GetPurchaseRequests()
+    public async Task<IActionResult> GetPurchaseRequests(
+        string? search = null,
+        string? status = null,
+        string sort = "createdAt",
+        bool desc = true)
     {
-        var purchaseRequests = await _context.PurchaseRequests
-            .ToListAsync();
+        var query = _context.PurchaseRequests
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            search = search.Trim().ToLower();
+
+            query = query.Where(p =>
+                p.MaterialName.ToLower().Contains(search));
+        }
+
+        if (!string.IsNullOrWhiteSpace(status))
+        {
+            query = query.Where(p =>
+                p.Status.ToLower() == status.Trim().ToLower());
+        }
+
+        query = sort.ToLower() switch
+        {
+            "material" =>
+                desc
+                    ? query.OrderByDescending(p => p.MaterialName)
+                    : query.OrderBy(p => p.MaterialName),
+
+            "quantity" =>
+                desc
+                    ? query.OrderByDescending(p => p.Quantity)
+                    : query.OrderBy(p => p.Quantity),
+
+            "requiredbydate" =>
+                desc
+                    ? query.OrderByDescending(p => p.RequiredByDate)
+                    : query.OrderBy(p => p.RequiredByDate),
+
+            "status" =>
+                desc
+                    ? query.OrderByDescending(p => p.Status)
+                    : query.OrderBy(p => p.Status),
+
+            _ =>
+                desc
+                    ? query.OrderByDescending(p => p.CreatedAt)
+                    : query.OrderBy(p => p.CreatedAt)
+        };
+
+        var purchaseRequests = await query.ToListAsync();
 
         return Ok(purchaseRequests);
     }
 
+    // GET BY ID
     [HttpGet("{id}")]
     public async Task<IActionResult> GetPurchaseRequest(int id)
     {
@@ -84,6 +142,7 @@ public class PurchaseRequestsController : ControllerBase
         return Ok(purchaseRequest);
     }
 
+    // UPDATE
     [HttpPut("{id}")]
     public async Task<IActionResult> UpdatePurchaseRequest(
         int id,
@@ -100,6 +159,14 @@ public class PurchaseRequestsController : ControllerBase
             });
         }
 
+        if (purchaseRequest.Status != "Pending")
+        {
+            return BadRequest(new
+            {
+                message = "Only pending purchase requests can be updated"
+            });
+        }
+
         if (string.IsNullOrWhiteSpace(request.MaterialName))
         {
             return BadRequest(new
@@ -110,7 +177,7 @@ public class PurchaseRequestsController : ControllerBase
 
         if (request.Quantity <= 0)
         {
-           return BadRequest(new
+            return BadRequest(new
             {
                 message = "Quantity must be greater than zero"
             });
@@ -124,7 +191,7 @@ public class PurchaseRequestsController : ControllerBase
             });
         }
 
-        purchaseRequest.MaterialName = request.MaterialName;
+        purchaseRequest.MaterialName = request.MaterialName.Trim();
         purchaseRequest.Quantity = request.Quantity;
         purchaseRequest.RequiredByDate = request.RequiredByDate;
 
@@ -133,6 +200,7 @@ public class PurchaseRequestsController : ControllerBase
         return Ok(purchaseRequest);
     }
 
+    // CANCEL
     [HttpDelete("{id}")]
     public async Task<IActionResult> CancelPurchaseRequest(int id)
     {
@@ -166,7 +234,9 @@ public class PurchaseRequestsController : ControllerBase
         });
     }
 
+    // APPROVE
     [HttpPut("{id}/approve")]
+    [Authorize(Roles = "ProjectManager,Administrator")]
     public async Task<IActionResult> ApprovePurchaseRequest(int id)
     {
         var purchaseRequest = await _context.PurchaseRequests
@@ -192,6 +262,10 @@ public class PurchaseRequestsController : ControllerBase
 
         await _context.SaveChangesAsync();
 
-        return Ok(purchaseRequest);
+        return Ok(new
+        {
+            message = "Purchase request approved successfully",
+            purchaseRequest
+        });
     }
 }
