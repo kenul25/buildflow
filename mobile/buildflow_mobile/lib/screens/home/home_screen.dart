@@ -4,9 +4,12 @@ import '../../providers/auth_provider.dart';
 import '../../providers/theme_provider.dart';
 import '../../services/project_service.dart';
 import '../../services/inventory_service.dart';
+import '../../services/procurement_service.dart';
 import '../projects/site_engineer_projects_screen.dart';
 import '../projects/site_requests_screen.dart';
 import '../inventory/inventory_screen.dart';
+import '../procurement/procurement_screen.dart';
+
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({
@@ -14,12 +17,14 @@ class HomeScreen extends StatefulWidget {
     required this.themeProvider,
     required this.projectService,
     required this.inventoryService,
+    required this.procurementService,
     super.key,
   });
   final AuthProvider authProvider;
   final ThemeProvider themeProvider;
   final ProjectService projectService;
   final InventoryService inventoryService;
+  final ProcurementService procurementService;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -32,6 +37,7 @@ class _HomeScreenState extends State<HomeScreen> {
     'Projects',
     'Materials',
     'Requests',
+    'Procurement',
     'Profile',
   ];
   static const _icons = [
@@ -39,6 +45,7 @@ class _HomeScreenState extends State<HomeScreen> {
     Icons.apartment_outlined,
     Icons.inventory_2_outlined,
     Icons.add_box_outlined,
+    Icons.shopping_cart_outlined,
     Icons.person_outline,
   ];
 
@@ -74,11 +81,12 @@ class _HomeScreenState extends State<HomeScreen> {
   );
 
   Widget _page() => switch (_index) {
-    0 => _Overview(userName: widget.authProvider.user!.fullName),
-    1 => SiteEngineerProjectsScreen(service: widget.projectService),
-    2 => InventoryScreen(service: widget.inventoryService),
-    3 => SiteRequestsScreen(service: widget.projectService),
-    4 => _Profile(
+    0 => _Overview(userName: widget.authProvider.user!.fullName,),
+    1 => SiteEngineerProjectsScreen(service: widget.projectService,),
+    2 => InventoryScreen(service: widget.inventoryService,),
+    3 => SiteRequestsScreen(service: widget.projectService,),
+    4 => ProcurementScreen(service: widget.procurementService,),
+    5 => _Profile(
       authProvider: widget.authProvider,
       themeProvider: widget.themeProvider,
     ),
