@@ -1,0 +1,88 @@
+import { Navigate, Route, Routes } from 'react-router-dom'
+import DashboardLayout from '../layouts/DashboardLayout.jsx'
+import PublicLayout from '../layouts/PublicLayout.jsx'
+import DashboardPage from '../pages/DashboardPage.jsx'
+import AdminDashboardPage from '../pages/AdminDashboardPage.jsx'
+import LandingPage from '../pages/LandingPage.jsx'
+import LoginPage from '../pages/LoginPage.jsx'
+import NotFoundPage from '../pages/NotFoundPage.jsx'
+import RegisterPage from '../pages/RegisterPage.jsx'
+import UnauthorizedPage from '../pages/UnauthorizedPage.jsx'
+import ProtectedRoute from './ProtectedRoute.jsx'
+import {
+  ConstructionListPage,
+  ConstructionDetailsPage,
+  ConstructionFormPage,
+} from '../features/construction/ConstructionPage.jsx'
+import InventoryPage from '../features/inventory/InventoryPage.jsx'
+import WorkerPage from '../features/workforce/WorkerPage.jsx'
+import WorkerSkillPage from '../features/workforce/WorkerSkillPage.jsx'
+import WorkerAssignmentPage from '../features/workforce/WorkerAssignmentPage.jsx'
+import ShiftPage from '../features/workforce/ShiftPage.jsx'
+import SkillPage from '../features/skills/SkillPage.jsx'
+import EquipmentPage from '../features/workforce/EquipmentPage.jsx'
+import EquipmentReservationPage from '../features/workforce/EquipmentReservationPage.jsx'
+
+export default function AppRoutes() {
+  return (
+    <Routes>
+      <Route element={<PublicLayout />}>
+        <Route index element={<LandingPage />} />
+        <Route path="login" element={<LoginPage />} />
+        <Route path="register" element={<RegisterPage />} />
+        <Route path="unauthorized" element={<UnauthorizedPage />} />
+      </Route>
+
+      <Route element={<ProtectedRoute />}>
+        <Route element={<DashboardLayout />}>
+          <Route path="dashboard" element={<DashboardPage />} />
+          <Route path="inventory" element={<InventoryPage />} />
+
+          <Route path="workforce" element={<WorkerPage />} />
+          <Route path="worker-skills" element={<WorkerSkillPage />} />
+          <Route
+            path="worker-assignments"
+            element={<WorkerAssignmentPage />}
+          />
+          <Route path="shifts" element={<ShiftPage />} />
+          <Route path="skills" element={<SkillPage />} />
+          <Route path="equipment" element={<EquipmentPage />} />
+          <Route
+            path="equipment-reservations"
+            element={<EquipmentReservationPage />}
+          />
+
+          <Route path="construction/:kind" element={<ConstructionListPage />} />
+          <Route
+            path="construction/:kind/:id"
+            element={<ConstructionDetailsPage />}
+          />
+
+          <Route
+            element={
+              <ProtectedRoute roles={['Administrator', 'ProjectManager']} />
+            }
+          >
+            <Route
+              path="construction/:kind/new"
+              element={<ConstructionFormPage />}
+            />
+            <Route
+              path="construction/:kind/:id/edit"
+              element={<ConstructionFormPage />}
+            />
+          </Route>
+
+          <Route
+            element={<ProtectedRoute roles={['Administrator']} />}
+          >
+            <Route path="admin" element={<AdminDashboardPage />} />
+          </Route>
+        </Route>
+      </Route>
+
+      <Route path="home" element={<Navigate to="/dashboard" replace />} />
+      <Route path="*" element={<NotFoundPage />} />
+    </Routes>
+  )
+}

@@ -3,6 +3,7 @@ using System;
 using BuildFlow.Api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace BuildFlow.Api.Migrations
 {
     [DbContext(typeof(BuildFlowDbContext))]
-    partial class BuildFlowDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260927221053_AddEquipmentReservations")]
+    partial class AddEquipmentReservations
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -710,51 +713,6 @@ namespace BuildFlow.Api.Migrations
                         });
                 });
 
-            modelBuilder.Entity("BuildFlow.Api.Models.Schedule", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("ActivityId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("ApprovalStatus")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTimeOffset>("EndTime")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<bool>("IsArchived")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Notes")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<DateTimeOffset>("StartTime")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ActivityId", "StartTime", "EndTime");
-
-                    b.ToTable("Schedules", (string)null);
-                });
-
             modelBuilder.Entity("BuildFlow.Api.Models.Shift", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1252,17 +1210,6 @@ namespace BuildFlow.Api.Migrations
                         .IsRequired();
 
                     b.Navigation("ResourceRequest");
-                });
-
-            modelBuilder.Entity("BuildFlow.Api.Models.Schedule", b =>
-                {
-                    b.HasOne("BuildFlow.Api.Models.ConstructionActivity", "Activity")
-                        .WithMany()
-                        .HasForeignKey("ActivityId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Activity");
                 });
 
             modelBuilder.Entity("BuildFlow.Api.Models.Site", b =>

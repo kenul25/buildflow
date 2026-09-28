@@ -1,4 +1,4 @@
-using BuildFlow.Api.Models;
+﻿using BuildFlow.Api.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace BuildFlow.Api.Data;
@@ -15,6 +15,11 @@ public sealed class BuildFlowDbContext(DbContextOptions<BuildFlowDbContext> opti
     public DbSet<Worker> Workers => Set<Worker>();
     public DbSet<Skill> Skills => Set<Skill>();
     public DbSet<WorkerSkill> WorkerSkills => Set<WorkerSkill>();
+    public DbSet<Shift> Shifts => Set<Shift>();
+    public DbSet<Equipment> Equipment => Set<Equipment>();
+    public DbSet<EquipmentReservation> EquipmentReservations => Set<EquipmentReservation>();
+    public DbSet<Schedule> Schedules => Set<Schedule>();
+    public DbSet<WorkerAssignment> WorkerAssignments => Set<WorkerAssignment>();
     public DbSet<ConstructionActivity> ConstructionActivities => Set<ConstructionActivity>();
     public DbSet<ProgressUpdate> ProgressUpdates => Set<ProgressUpdate>();
     public DbSet<SitePhoto> SitePhotos => Set<SitePhoto>();
@@ -160,6 +165,126 @@ public sealed class BuildFlowDbContext(DbContextOptions<BuildFlowDbContext> opti
             .HasIndex(ws => new { ws.WorkerId, ws.SkillId })
             .IsUnique();
 
+        modelBuilder.Entity<Shift>().ToTable("Shifts");
+        modelBuilder.Entity<Shift>().HasKey(s => s.Id);
+
+        modelBuilder.Entity<Shift>()
+            .Property(s => s.Name)
+            .HasMaxLength(100)
+            .IsRequired();
+        modelBuilder.Entity<Equipment>().ToTable("Equipment");
+        modelBuilder.Entity<Equipment>().HasKey(e => e.Id);
+
+        modelBuilder.Entity<Equipment>()
+            .Property(e => e.EquipmentCode)
+            .HasMaxLength(50)
+            .IsRequired();
+
+        modelBuilder.Entity<Equipment>()
+            .Property(e => e.Name)
+            .HasMaxLength(160)
+            .IsRequired();
+
+        modelBuilder.Entity<Equipment>()
+            .Property(e => e.Type)
+            .HasMaxLength(100)
+            .IsRequired();
+
+        modelBuilder.Entity<Equipment>()
+            .Property(e => e.Status)
+            .HasMaxLength(50)
+            .IsRequired();
+
+        modelBuilder.Entity<Equipment>()
+            .Property(e => e.Description)
+            .HasMaxLength(500);
+
+        modelBuilder.Entity<Equipment>()
+            .HasIndex(e => e.EquipmentCode)
+            .IsUnique();
+        modelBuilder.Entity<WorkerAssignment>().ToTable("WorkerAssignments");
+        modelBuilder.Entity<WorkerAssignment>().HasKey(a => a.Id);
+
+        modelBuilder.Entity<WorkerAssignment>()
+            .Property(a => a.Status)
+            .HasMaxLength(32)
+            .IsRequired();
+
+        modelBuilder.Entity<WorkerAssignment>()
+            .Property(a => a.Notes)
+            .HasMaxLength(500);
+
+        modelBuilder.Entity<WorkerAssignment>()
+            .HasOne(a => a.Worker)
+            .WithMany()
+            .HasForeignKey(a => a.WorkerId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<WorkerAssignment>()
+            .HasOne(a => a.Activity)
+            .WithMany()
+            .HasForeignKey(a => a.ActivityId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<WorkerAssignment>()
+            .HasIndex(a => new { a.WorkerId, a.StartTime, a.EndTime });
+
+        modelBuilder.Entity<WorkerAssignment>()
+            .HasIndex(a => a.ActivityId);
+        modelBuilder.Entity<EquipmentReservation>().ToTable("EquipmentReservations");
+        modelBuilder.Entity<EquipmentReservation>().HasKey(r => r.Id);
+
+        modelBuilder.Entity<EquipmentReservation>()
+            .Property(r => r.Status)
+            .HasMaxLength(32)
+            .IsRequired();
+
+        modelBuilder.Entity<EquipmentReservation>()
+            .Property(r => r.Notes)
+            .HasMaxLength(500);
+
+        modelBuilder.Entity<EquipmentReservation>()
+            .HasOne(r => r.Equipment)
+            .WithMany()
+            .HasForeignKey(r => r.EquipmentId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<EquipmentReservation>()
+            .HasOne(r => r.Activity)
+            .WithMany()
+            .HasForeignKey(r => r.ActivityId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<EquipmentReservation>()
+            .HasIndex(r => new { r.EquipmentId, r.StartTime, r.EndTime });
+
+        modelBuilder.Entity<EquipmentReservation>()
+            .HasIndex(r => r.ActivityId);
+        modelBuilder.Entity<Schedule>().ToTable("Schedules");
+        modelBuilder.Entity<Schedule>().HasKey(s => s.Id);
+
+        modelBuilder.Entity<Schedule>()
+            .Property(s => s.Status)
+            .HasMaxLength(32)
+            .IsRequired();
+
+        modelBuilder.Entity<Schedule>()
+            .Property(s => s.ApprovalStatus)
+            .HasMaxLength(64)
+            .IsRequired();
+
+        modelBuilder.Entity<Schedule>()
+            .Property(s => s.Notes)
+            .HasMaxLength(500);
+
+        modelBuilder.Entity<Schedule>()
+            .HasOne(s => s.Activity)
+            .WithMany()
+            .HasForeignKey(s => s.ActivityId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<Schedule>()
+            .HasIndex(s => new { s.ActivityId, s.StartTime, s.EndTime });
         var seededAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
         var roleIds = new[]
         {
@@ -211,3 +336,8 @@ public sealed class BuildFlowDbContext(DbContextOptions<BuildFlowDbContext> opti
             entry.Entity.ValidateStock();
     }
 }
+
+
+
+
+
