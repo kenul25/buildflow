@@ -19,7 +19,7 @@ import WorkerPage from '../features/workforce/WorkerPage.jsx'
 import WorkerSkillPage from '../features/workforce/WorkerSkillPage.jsx'
 import WorkerAssignmentPage from '../features/workforce/WorkerAssignmentPage.jsx'
 import ShiftPage from '../features/workforce/ShiftPage.jsx'
-import SkillPage from '../features/skills/SkillPage.jsx'
+import SkillPage from '../features/workforce/SkillPage.jsx'
 import EquipmentPage from '../features/workforce/EquipmentPage.jsx'
 import EquipmentReservationPage from '../features/workforce/EquipmentReservationPage.jsx'
 
