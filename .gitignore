@@ -1,0 +1,44 @@
+# Environment files
+.env
+.env.*
+!.env.example
+
+# ASP.NET Core / .NET
+**/bin/
+**/obj/
+backend/BuildFlow.Api/uploads/
+.vs/
+
+# React / Node
+**/node_modules/
+**/dist/
+
+# Flutter / Dart
+**/.dart_tool/
+**/build/
+
+# Python / Agentic AI
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# IDE
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Project planning files
+/plan/
+
+# Local alternate .NET build output
+**/bin-member01/
+
+# BuildFlow API tests stay local on this feature branch
+backend/BuildFlow.Api.Tests/
