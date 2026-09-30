@@ -12,6 +12,7 @@ import 'services/api_service.dart';
 import 'services/auth_service.dart';
 import 'services/project_service.dart';
 import 'services/inventory_service.dart';
+import 'services/procurement_service.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,7 +24,7 @@ void main() {
   );
   final themeProvider = ThemeProvider(PreferenceStorage());
   runApp(
-    BuildFlowApp(authProvider: authProvider, themeProvider: themeProvider, projectService: ProjectService(apiService), inventoryService: InventoryService(apiService)),
+    BuildFlowApp(authProvider: authProvider, themeProvider: themeProvider, projectService: ProjectService(apiService), inventoryService: InventoryService(apiService), procurementService: ProcurementService(apiService),),
   );
 }
 
@@ -33,12 +34,14 @@ class BuildFlowApp extends StatefulWidget {
     required this.themeProvider,
     required this.projectService,
     required this.inventoryService,
+    required this.procurementService,
     super.key,
   });
   final AuthProvider authProvider;
   final ThemeProvider themeProvider;
   final ProjectService projectService;
   final InventoryService inventoryService;
+  final ProcurementService procurementService;
 
   @override
   State<BuildFlowApp> createState() => _BuildFlowAppState();
@@ -72,6 +75,7 @@ class _BuildFlowAppState extends State<BuildFlowApp> {
             themeProvider: widget.themeProvider,
             projectService: widget.projectService,
             inventoryService: widget.inventoryService,
+            procurementService: widget.procurementService,
           ),
         },
       ),

@@ -1,5 +1,6 @@
 using BuildFlow.Api.Data;
 using BuildFlow.Api.DTOs;
+using BuildFlow.Api.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -18,7 +19,7 @@ public class DeliveriesController : ControllerBase
 
     [HttpPost]
     public async Task<IActionResult> CreateDelivery(
-    CreateDeliveryRequest request)
+        CreateDeliveryRequest request)
     {
         var purchaseOrder = await _context.PurchaseOrders
             .FirstOrDefaultAsync(p => p.Id == request.PurchaseOrderId);
@@ -31,11 +32,11 @@ public class DeliveriesController : ControllerBase
             });
         }
 
-        if (purchaseOrder.Status != "Pending")
+        if (purchaseOrder.Status == "Cancelled")
         {
             return BadRequest(new
             {
-                message = "Only pending purchase orders can have deliveries created"
+                message = "Cannot create delivery for a cancelled purchase order"
             });
         }
 
@@ -50,35 +51,27 @@ public class DeliveriesController : ControllerBase
         if (request.Quantity > purchaseOrder.Quantity)
         {
             return BadRequest(new
-           {
+            {
                 message = "Delivery quantity cannot exceed purchase order quantity"
             });
         }
 
-        if (request.DeliveryDate <= DateTime.UtcNow)
+        if (request.DeliveryDate < purchaseOrder.CreatedAt)
         {
             return BadRequest(new
             {
-                message = "Delivery date must be in the future"
+                message = "Delivery date cannot be before purchase order creation date"
             });
         }
 
-        if (request.DeliveryDate > purchaseOrder.DeliveryDate)
-        {
-            return BadRequest(new
-            {
-                message = "Delivery date cannot be after the purchase order delivery date"
-            });
-        }
-
-        var delivery = new BuildFlow.Api.Models.Delivery
+        var delivery = new Delivery
         {
             PurchaseOrderId = purchaseOrder.Id,
             MaterialName = purchaseOrder.MaterialName,
             Quantity = request.Quantity,
             DeliveryDate = request.DeliveryDate,
             Status = "Pending",
-            EvidenceUrl = request.EvidenceUrl,
+            EvidenceUrl = request.EvidenceUrl ?? string.Empty,
             CreatedAt = DateTime.UtcNow
         };
 
@@ -87,7 +80,7 @@ public class DeliveriesController : ControllerBase
         await _context.SaveChangesAsync();
 
         return Ok(delivery);
-    } 
+    }
 
     [HttpGet]
     public async Task<IActionResult> GetDeliveries()
@@ -140,6 +133,14 @@ public class DeliveriesController : ControllerBase
             });
         }
 
+        if (request.Quantity <= 0)
+        {
+            return BadRequest(new
+            {
+                message = "Quantity must be greater than zero"
+            });
+        }
+
         var purchaseOrder = await _context.PurchaseOrders
             .FirstOrDefaultAsync(p => p.Id == delivery.PurchaseOrderId);
 
@@ -151,14 +152,6 @@ public class DeliveriesController : ControllerBase
             });
         }
 
-        if (request.Quantity <= 0)
-        {
-            return BadRequest(new
-            {
-                message = "Quantity must be greater than zero"
-            });
-        }
-
         if (request.Quantity > purchaseOrder.Quantity)
         {
             return BadRequest(new
@@ -167,33 +160,19 @@ public class DeliveriesController : ControllerBase
             });
         }
 
-        if (request.DeliveryDate <= DateTime.UtcNow)
-        {
-            return BadRequest(new
-            {
-                message = "Delivery date must be in the future"
-            });
-        }
-
-        if (request.DeliveryDate > purchaseOrder.DeliveryDate)
-        {
-            return BadRequest(new
-            {
-                message = "Delivery date cannot be after the purchase order delivery date"
-            });
-        }
-
         delivery.Quantity = request.Quantity;
         delivery.DeliveryDate = request.DeliveryDate;
-        delivery.EvidenceUrl = request.EvidenceUrl;
+        delivery.EvidenceUrl = request.EvidenceUrl ?? string.Empty;
 
         await _context.SaveChangesAsync();
 
         return Ok(delivery);
     }
 
-    [HttpPut("{id}/confirm")]
-    public async Task<IActionResult> ConfirmDelivery(int id)
+    [HttpPut("{id}/status")]
+    public async Task<IActionResult> UpdateDeliveryStatus(
+        int id,
+        [FromQuery] string status)
     {
         var delivery = await _context.Deliveries
             .FirstOrDefaultAsync(d => d.Id == id);
@@ -206,31 +185,27 @@ public class DeliveriesController : ControllerBase
             });
         }
 
-        if (delivery.Status == "Completed")
+        var allowedStatuses = new[]
+        {
+            "Pending",
+            "Received",
+            "Completed",
+            "Rejected"
+        };
+
+        if (!allowedStatuses.Contains(status))
         {
             return BadRequest(new
             {
-                message = "Delivery is already completed"
+                message = "Invalid delivery status"
             });
         }
 
-        if (delivery.Status == "Cancelled")
-        {
-            return BadRequest(new
-            {
-                message = "Cancelled deliveries cannot be completed"
-            });
-        }
-
-        delivery.Status = "Completed";
+        delivery.Status = status;
 
         await _context.SaveChangesAsync();
 
-        return Ok(new
-        {
-            message = "Delivery confirmed successfully",
-            delivery
-        });
+        return Ok(delivery);
     }
 
     [HttpDelete("{id}")]
@@ -255,19 +230,11 @@ public class DeliveriesController : ControllerBase
             });
         }
 
-        if (delivery.Status == "Cancelled")
-        {
-            return BadRequest(new
-            {
-                message = "Delivery is already cancelled"
-            });
-        }
-
         delivery.Status = "Cancelled";
 
         await _context.SaveChangesAsync();
 
-       return Ok(new
+        return Ok(new
         {
             message = "Delivery cancelled successfully",
             delivery
