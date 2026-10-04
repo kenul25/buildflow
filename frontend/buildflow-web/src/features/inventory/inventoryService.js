@@ -15,5 +15,8 @@ export const inventoryService = {
   reservations: async (params = {}) => (await api.get('/inventory/reservations', { params })).data,
   reserve: async (id, body) => (await api.post(`/inventory/materials/${id}/reservations`, body)).data,
   release: async (id) => api.delete(`/inventory/reservations/${id}`),
+  editReservation: async (id, body) => api.put(`/inventory/reservations/${id}`, body),
+  consume: async (id, body) => api.post(`/inventory/reservations/${id}/consume`, body),
+  reverse: async (id) => api.post(`/inventory/movements/${id}/reverse`),
   movements: async (params = {}) => (await api.get('/inventory/movements', { params })).data,
 }

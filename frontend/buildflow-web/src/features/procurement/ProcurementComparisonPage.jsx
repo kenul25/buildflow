@@ -51,7 +51,7 @@ export default function ProcurementComparisonPage() {
 
       const response = await api.post('/Procurement/compare', {
         materialName: materialName.trim(),
-        quantity: Number(quantity),
+        requiredQuantity: Number(quantity),
       })
 
       const data = response.data
@@ -59,7 +59,7 @@ export default function ProcurementComparisonPage() {
       setResults(
         Array.isArray(data)
           ? data
-          : data?.items ?? [],
+          : data?.recommendedQuotation ? [data.recommendedQuotation, ...(data.alternatives ?? [])] : [],
       )
     } catch (err) {
       setError(apiErrorMessage(err))

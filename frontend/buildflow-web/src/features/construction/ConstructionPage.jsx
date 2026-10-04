@@ -4,6 +4,8 @@ import { useAuth } from '../../hooks/useAuth.js'
 import { apiErrorMessage } from '../../services/api.js'
 import { constructionService, kinds } from './constructionService.js'
 import './construction.css'
+import { allRows } from '../../services/lookups.js'
+import ActivityOperations from './ActivityOperations.jsx'
 
 const fields = {
   projects: [['code', 'Project code', 'text', true], ['status', 'Status', 'select', false, ['Planned', 'Active', 'OnHold', 'Completed']], ['startDate', 'Start date', 'date'], ['endDate', 'End date', 'date']],
@@ -67,7 +69,7 @@ export function ConstructionDetailsPage() {
   const [item, setItem] = useState(null); const [error, setError] = useState('')
   useEffect(() => { constructionService.get(kind, id).then(setItem).catch((cause) => setError(apiErrorMessage(cause))) }, [kind, id])
   const child = { projects: 'sites', sites: 'phases', phases: 'activities' }[kind]
-  return <main className="dashboard-content construction-page"><Link to={`/construction/${kind}`}>← Back to {kinds[kind].title}</Link>{location.state?.success && <p role="status" className="success-alert">{location.state.success}</p>}{error && <p role="alert" className="form-alert">{error}</p>}{!item && !error && <div className="table-state"><span className="spinner" /> Loading details…</div>}{item && <><div className="construction-heading"><div><span className="eyebrow">{kinds[kind].title} / Details</span><h1>{item.name}</h1><p>{item.description || 'No description provided.'}</p></div>{canEdit && <Link className="button button-secondary" to={`/construction/${kind}/${id}/edit`}>Edit details</Link>}</div><section className="construction-panel construction-details">{Object.entries(item).filter(([key, value]) => value != null && !['id', 'description', 'name'].includes(key)).map(([key, value]) => <div key={key}><small>{key.replace(/([A-Z])/g, ' $1')}</small><strong>{String(value)}</strong></div>)}</section>{child && <section className="construction-panel"><h2>Related {kinds[child].title.toLowerCase()}</h2><p>Browse child records in the {kinds[child].title} section.</p><Link className="button button-secondary" to={`/construction/${child}?parentId=${id}`}>View {kinds[child].title}</Link></section>}</>}</main>
+  return <main className="dashboard-content construction-page"><Link to={`/construction/${kind}`}>← Back to {kinds[kind].title}</Link>{location.state?.success && <p role="status" className="success-alert">{location.state.success}</p>}{error && <p role="alert" className="form-alert">{error}</p>}{!item && !error && <div className="table-state"><span className="spinner" /> Loading details…</div>}{item && <><div className="construction-heading"><div><span className="eyebrow">{kinds[kind].title} / Details</span><h1>{item.name}</h1><p>{item.description || 'No description provided.'}</p></div>{canEdit && <Link className="button button-secondary" to={`/construction/${kind}/${id}/edit`}>Edit details</Link>}</div><section className="construction-panel construction-details">{Object.entries(item).filter(([key, value]) => value != null && !['id', 'description', 'name'].includes(key)).map(([key, value]) => <div key={key}><small>{key.replace(/([A-Z])/g, ' $1')}</small><strong>{String(value)}</strong></div>)}</section>{kind === 'activities' && <ActivityOperations activity={item} canManage={canEdit} />}{child && <section className="construction-panel"><h2>Related {kinds[child].title.toLowerCase()}</h2><p>Browse child records in the {kinds[child].title} section.</p><Link className="button button-secondary" to={`/construction/${child}?parentId=${id}`}>View {kinds[child].title}</Link></section>}</>}</main>
 }
 
 export function ConstructionFormPage() {
@@ -79,7 +81,7 @@ export function ConstructionFormPage() {
   useEffect(() => { if (!id && params.get('parentId')) queueMicrotask(() => setForm((current) => ({ ...current, parentId: params.get('parentId') }))) }, [id, params])
   useEffect(() => {
     if (id) constructionService.get(kind, id).then((data) => setForm(Object.fromEntries(Object.entries(form).map(([key]) => [key, data[key] ?? ''])))).catch((cause) => setError(apiErrorMessage(cause))).finally(() => setLoading(false))
-    if (kinds[kind].parent) constructionService.list(kinds[kind].parent, { pageSize: 100 }).then((data) => setParents(data.items)).catch((cause) => setError(apiErrorMessage(cause)))
+    if (kinds[kind].parent) allRows('/' + kinds[kind].parent).then(setParents).catch((cause) => setError(apiErrorMessage(cause)))
     if (kind === 'projects') constructionService.engineers().then(setEngineers).catch((cause) => setError(apiErrorMessage(cause)))
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kind, id])

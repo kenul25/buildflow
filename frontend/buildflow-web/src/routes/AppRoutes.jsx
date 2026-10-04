@@ -13,11 +13,15 @@ import { ConstructionListPage, ConstructionDetailsPage, ConstructionFormPage } f
 import InventoryPage from '../features/inventory/InventoryPage.jsx'
 import SuppliersPage from '../features/procurement/SuppliersPage.jsx'
 import SupplierMaterialsPage from '../features/procurement/SupplierMaterialsPage.jsx'
-import QuotationsPage from '../features/procurement/QuotationsPage.jsx'
+
 import ProcurementComparisonPage from '../features/procurement/ProcurementComparisonPage.jsx'
-import PurchaseRequestsPage from '../features/procurement/PurchaseRequestsPage.jsx'
-import PurchaseOrdersPage from '../features/procurement/PurchaseOrdersPage.jsx'
-import DeliveriesPage from '../features/procurement/DeliveriesPage.jsx'
+
+
+
+
+import ProcurementRecordsPage from '../features/procurement/ProcurementRecordsPage.jsx'
+import SchedulingPage from '../features/scheduling/SchedulingPage.jsx'
+import WorkflowsPage from '../features/scheduling/WorkflowsPage.jsx'
 
 export default function AppRoutes() {
   return (
@@ -32,15 +36,15 @@ export default function AppRoutes() {
       <Route element={<ProtectedRoute />}>
         <Route element={<DashboardLayout />}>
           <Route path="dashboard" element={<DashboardPage />} />
-          <Route path="inventory" element={<InventoryPage />} />
+          <Route path="inventory" element={<InventoryPage />} /><Route path="scheduling" element={<SchedulingPage />} /><Route path="workflows" element={<WorkflowsPage />} />
 
           <Route path="suppliers" element={<ProtectedRoute roles={['ProcurementOfficer', 'ProjectManager', 'Administrator']} />}><Route index element={<SuppliersPage />} /></Route>
           <Route path="supplier-materials" element={<ProtectedRoute roles={['ProcurementOfficer', 'ProjectManager', 'Administrator']} />}><Route index element={<SupplierMaterialsPage />} /></Route>
-          <Route path="quotations" element={<ProtectedRoute roles={['ProcurementOfficer', 'ProjectManager', 'Administrator']} />}><Route index element={<QuotationsPage />} /></Route>
+          <Route path="quotations" element={<ProtectedRoute roles={['ProcurementOfficer', 'ProjectManager', 'Administrator']} />}><Route index element={<ProcurementRecordsPage kind="Quotations" />} /></Route>
           <Route path="procurement/compare" element={<ProtectedRoute roles={['ProcurementOfficer', 'ProjectManager', 'Administrator']} />}><Route index element={<ProcurementComparisonPage />} /></Route>
-          <Route path="purchase-requests" element={<ProtectedRoute roles={['ProcurementOfficer', 'ProjectManager', 'Administrator']} />}><Route index element={<PurchaseRequestsPage />} /></Route>
-          <Route path="purchase-orders" element={<ProtectedRoute roles={['ProcurementOfficer', 'ProjectManager', 'Administrator']} />}><Route index element={<PurchaseOrdersPage />} /></Route>
-          <Route path="deliveries" element={<ProtectedRoute roles={['ProcurementOfficer', 'ProjectManager', 'Administrator']} />}><Route index element={<DeliveriesPage />} /></Route>
+          <Route path="purchase-requests" element={<ProtectedRoute roles={['ProcurementOfficer', 'ProjectManager', 'Administrator']} />}><Route index element={<ProcurementRecordsPage kind="PurchaseRequests" />} /></Route>
+          <Route path="purchase-orders" element={<ProtectedRoute roles={['ProcurementOfficer', 'ProjectManager', 'Administrator']} />}><Route index element={<ProcurementRecordsPage kind="PurchaseOrders" />} /></Route>
+          <Route path="deliveries" element={<ProtectedRoute roles={['ProcurementOfficer', 'ProjectManager', 'Administrator']} />}><Route index element={<ProcurementRecordsPage kind="Deliveries" />} /></Route>
 
           <Route path="construction/:kind" element={<ConstructionListPage />} />
           <Route path="construction/:kind/:id" element={<ConstructionDetailsPage />} />
