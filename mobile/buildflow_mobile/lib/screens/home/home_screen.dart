@@ -3,13 +3,15 @@ import 'package:flutter/material.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/theme_provider.dart';
 import '../../services/project_service.dart';
+import '../../services/api_service.dart';
 import '../../services/inventory_service.dart';
 import '../../services/procurement_service.dart';
+import '../../services/scheduling_service.dart';
+import '../scheduling/scheduling_screen.dart';
 import '../projects/site_engineer_projects_screen.dart';
 import '../projects/site_requests_screen.dart';
 import '../inventory/inventory_screen.dart';
 import '../procurement/procurement_screen.dart';
-
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({
@@ -38,6 +40,7 @@ class _HomeScreenState extends State<HomeScreen> {
     'Materials',
     'Requests',
     'Procurement',
+    'Scheduling',
     'Profile',
   ];
   static const _icons = [
@@ -46,6 +49,7 @@ class _HomeScreenState extends State<HomeScreen> {
     Icons.inventory_2_outlined,
     Icons.add_box_outlined,
     Icons.shopping_cart_outlined,
+    Icons.event_available_outlined,
     Icons.person_outline,
   ];
 
@@ -81,12 +85,23 @@ class _HomeScreenState extends State<HomeScreen> {
   );
 
   Widget _page() => switch (_index) {
-    0 => _Overview(userName: widget.authProvider.user!.fullName,),
-    1 => SiteEngineerProjectsScreen(service: widget.projectService,),
-    2 => InventoryScreen(service: widget.inventoryService,),
-    3 => SiteRequestsScreen(service: widget.projectService,),
-    4 => ProcurementScreen(service: widget.procurementService,),
-    5 => _Profile(
+    0 => _Overview(
+      userName: widget.authProvider.user!.fullName,
+      api: widget.projectService.api,
+    ),
+    1 => SiteEngineerProjectsScreen(service: widget.projectService),
+    2 => InventoryScreen(service: widget.inventoryService),
+    3 => SiteRequestsScreen(service: widget.projectService),
+    4 => ProcurementScreen(
+      service: widget.procurementService,
+      canApprove: widget.authProvider.user!.roles.any(
+        (role) => ['Administrator', 'ProjectManager'].contains(role),
+      ),
+    ),
+    5 => SchedulingScreen(
+      service: SchedulingService(widget.projectService.api),
+    ),
+    6 => _Profile(
       authProvider: widget.authProvider,
       themeProvider: widget.themeProvider,
     ),
@@ -94,68 +109,86 @@ class _HomeScreenState extends State<HomeScreen> {
   };
 }
 
-class _Overview extends StatelessWidget {
-  const _Overview({required this.userName});
+class _Overview extends StatefulWidget {
+  const _Overview({required this.userName, required this.api});
   final String userName;
+  final ApiService api;
+  @override
+  State<_Overview> createState() => _OverviewState();
+}
+
+class _OverviewState extends State<_Overview> {
+  late Future<dynamic> _summary;
+  @override
+  void initState() {
+    super.initState();
+    _summary = widget.api.request('GET', '/dashboard');
+  }
 
   @override
-  Widget build(BuildContext context) => ListView(
-    padding: const EdgeInsets.all(20),
-    children: [
-      Text(
-        'Good day, ${userName.split(' ').first}',
-        style: Theme.of(context).textTheme.headlineSmall
-            ?.copyWith(fontWeight: FontWeight.w800),
-      ),
-      const SizedBox(height: 6),
-      Text(
-        'Here is your site operations summary.',
-        style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
-      ),
-      const SizedBox(height: 24),
-      GridView.count(
-        crossAxisCount: 2,
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        mainAxisSpacing: 12,
-        crossAxisSpacing: 12,
-        childAspectRatio: 1.25,
-        children: const [
-          _SummaryCard(
-            label: 'Active projects',
-            value: '—',
-            icon: Icons.apartment,
+  Widget build(BuildContext context) => FutureBuilder<dynamic>(
+    future: _summary,
+    builder: (context, snapshot) {
+      final data = snapshot.data as Map<String, dynamic>?;
+      return ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
+          Text(
+            'Good day, ${widget.userName.split(' ').first}',
+            style: Theme.of(context).textTheme.headlineSmall,
           ),
-          _SummaryCard(label: 'Tasks today', value: '—', icon: Icons.task_alt),
-          _SummaryCard(
-            label: 'Pending requests',
-            value: '—',
-            icon: Icons.pending_actions,
+          const SizedBox(height: 12),
+          const Text('Your current site operations summary.'),
+          if (snapshot.hasError) Text('${snapshot.error}'),
+          TextButton(
+            onPressed: () => setState(
+              () => _summary = widget.api.request('GET', '/dashboard'),
+            ),
+            child: const Text('Refresh'),
           ),
-          _SummaryCard(
-            label: 'Approved plans',
-            value: '—',
-            icon: Icons.verified_outlined,
+          GridView.count(
+            crossAxisCount: 2,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            mainAxisSpacing: 12,
+            crossAxisSpacing: 12,
+            childAspectRatio: 1.25,
+            children: [
+              _SummaryCard(
+                label: 'Active projects',
+                value: '${data?['activeProjects'] ?? '…'}',
+                icon: Icons.apartment,
+              ),
+              _SummaryCard(
+                label: 'Active activities',
+                value: '${data?['activeActivities'] ?? '…'}',
+                icon: Icons.task_alt,
+              ),
+              _SummaryCard(
+                label: 'Pending requests',
+                value: '${data?['pendingRequests'] ?? '…'}',
+                icon: Icons.pending_actions,
+              ),
+              _SummaryCard(
+                label: 'Approved plans',
+                value: '${data?['approvedPlans'] ?? '…'}',
+                icon: Icons.verified_outlined,
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          const Card(
+            child: ListTile(
+              leading: Icon(Icons.construction),
+              title: Text('Site operations'),
+              subtitle: Text(
+                'Use Projects for resource requests and progress, Procurement for receipts, and Scheduling for assignments and equipment scans.',
+              ),
+            ),
           ),
         ],
-      ),
-      const SizedBox(height: 24),
-      Text(
-        'Quick actions',
-        style: Theme.of(context).textTheme.titleLarge
-            ?.copyWith(fontWeight: FontWeight.w700),
-      ),
-      const SizedBox(height: 12),
-      const Card(
-        child: ListTile(
-          leading: Icon(Icons.construction),
-          title: Text('Operational modules are ready to connect'),
-          subtitle: Text(
-            'Projects, requests and progress will be implemented in their feature milestones.',
-          ),
-        ),
-      ),
-    ],
+      );
+    },
   );
 }
 
