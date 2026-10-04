@@ -4,11 +4,11 @@ import React from 'react'
 import { render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, expect, test, vi } from 'vitest'
-import { ConstructionListPage } from './ConstructionPage.jsx'
-import { constructionService } from './constructionService.js'
+import { ConstructionListPage } from '../features/construction/ConstructionPage.jsx'
+import { constructionService } from '../features/construction/constructionService.js'
 
-vi.mock('../../hooks/useAuth.js', () => ({ useAuth: () => ({ user: { roles: ['ProjectManager'] } }) }))
-vi.mock('./constructionService.js', async (importOriginal) => ({ ...(await importOriginal()), constructionService: { list: vi.fn(), archive: vi.fn() } }))
+vi.mock('../hooks/useAuth.js', () => ({ useAuth: () => ({ user: { roles: ['ProjectManager'] } }) }))
+vi.mock('../features/construction/constructionService.js', async (importOriginal) => ({ ...(await importOriginal()), constructionService: { list: vi.fn(), archive: vi.fn() } }))
 
 beforeEach(() => vi.clearAllMocks())
 

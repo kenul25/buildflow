@@ -5,7 +5,7 @@ import { render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
 import { AuthContext } from '../context/auth-context.js'
-import ProtectedRoute from './ProtectedRoute.jsx'
+import ProtectedRoute from '../routes/ProtectedRoute.jsx'
 
 function renderRoute({ user = null, roles } = {}) {
   render(
