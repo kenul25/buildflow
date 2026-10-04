@@ -71,6 +71,11 @@ class ProcurementAgent:
             if not isinstance(task_data.get("input"), dict):
                 raise ProcurementAnalysisError("procurement_input_required")
 
+            if "inventoryResult" in task_data["input"]:
+                from agents.resource_procurement import recommend
+                result = recommend(task_data["input"])
+                return {"schemaVersion": "1.0", "task_id": task_id, "agent": self.name, "status": "Completed", "output": result, "error": None}
+
             task_input = ProcurementInput.model_validate(task_data["input"])
 
             result = recommend_procurement(task_input)
@@ -148,7 +153,7 @@ def recommend_procurement(
     # Deterministic ordering: lowest total cost first, then earliest delivery.
     eligible.sort(
         key=lambda quotation: (
-            quotation.totalPrice,
+            quotation.unitPrice * required,
             quotation.deliveryDate,
             quotation.quotationId,
         )
@@ -165,7 +170,7 @@ def recommend_procurement(
             "quantity": float(quotation.quantity),
             "unitPrice": float(quotation.unitPrice),
             "deliveryDate": quotation.deliveryDate.isoformat(),
-            "totalPrice": float(quotation.totalPrice),
+            "totalPrice": float(quotation.unitPrice * required),
         }
 
     return {
