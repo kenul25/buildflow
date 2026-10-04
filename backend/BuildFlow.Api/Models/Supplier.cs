@@ -3,6 +3,9 @@ namespace BuildFlow.Api.Models;
 public class Supplier
 {
     public int Id { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public Guid? CreatedById { get; set; }
+    public Guid? UpdatedById { get; set; }
 
     public string Name { get; set; } = string.Empty;
 

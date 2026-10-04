@@ -9,7 +9,7 @@ namespace BuildFlow.Api.Controllers;
 [ApiController]
 [Route("api/inventory")]
 [Authorize]
-public sealed class InventoryController(IInventoryService inventory, InventoryAnalysisAgent analysisAgent) : ControllerBase
+public sealed class InventoryController(IInventoryService inventory, InventoryAnalysisAgent analysisAgent, InventoryService operations, BuildFlow.Api.Data.BuildFlowDbContext db) : ControllerBase
 {
     [HttpGet("warehouses")]
     public Task<IReadOnlyList<WarehouseDto>> Warehouses(CancellationToken ct) => inventory.ListWarehousesAsync(ct);
@@ -63,13 +63,13 @@ public sealed class InventoryController(IInventoryService inventory, InventoryAn
     [HttpGet("alerts/low-stock")]
     public Task<IReadOnlyList<LowStockAlertDto>> LowStockAlerts([FromQuery] decimal threshold = 0, CancellationToken ct = default) => inventory.GetLowStockAlertsAsync(threshold, ct);
 
-    [HttpPost("materials/{id:guid}/receive"), Authorize(Roles = "Administrator,ProjectManager,SiteEngineer,InventoryOfficer")]
+    [HttpPost("materials/{id:guid}/receive"), Authorize(Roles = "Administrator,ProjectManager,InventoryOfficer")]
     public Task<MaterialDto> Receive(Guid id, StockAdjustmentDto dto, CancellationToken ct) => inventory.ReceiveAsync(id, dto.Quantity, ActorId, dto.Reference, ct);
 
-    [HttpPost("materials/{id:guid}/issue"), Authorize(Roles = "Administrator,ProjectManager,SiteEngineer,InventoryOfficer")]
+    [HttpPost("materials/{id:guid}/issue"), Authorize(Roles = "Administrator,ProjectManager,InventoryOfficer")]
     public Task<MaterialDto> Issue(Guid id, StockAdjustmentDto dto, CancellationToken ct) => inventory.IssueAsync(id, dto.Quantity, ActorId, dto.Reference, ct);
 
-    [HttpPost("materials/{id:guid}/return"), Authorize(Roles = "Administrator,ProjectManager,SiteEngineer,InventoryOfficer")]
+    [HttpPost("materials/{id:guid}/return"), Authorize(Roles = "Administrator,ProjectManager,InventoryOfficer")]
     public Task<MaterialDto> Return(Guid id, StockAdjustmentDto dto, CancellationToken ct) => inventory.ReturnAsync(id, dto.Quantity, ActorId, dto.Reference, ct);
 
     [HttpPost("reservations/check")]
@@ -95,4 +95,30 @@ public sealed class InventoryController(IInventoryService inventory, InventoryAn
     public Task<InventoryPageResult<StockMovementDto>> Movements([FromQuery] Guid? materialId, [FromQuery] int page = 1, [FromQuery] int pageSize = 20, CancellationToken ct = default) => inventory.ListMovementsAsync(materialId, page, pageSize, ct);
 
     private Guid? ActorId => Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var actorId) ? actorId : null;
+
+    [HttpGet("warehouses/{id:guid}")]
+    public async Task<ActionResult<WarehouseDto>> Warehouse(Guid id, CancellationToken ct)
+    {
+        var row = (await inventory.ListWarehousesAsync(ct)).SingleOrDefault(x => x.Id == id);
+        return row == null ? NotFound() : Ok(row);
+    }
+    [HttpGet("reservations/{id:guid}")]
+    public async Task<IActionResult> Reservation(Guid id, CancellationToken ct)
+    {
+        await operations.RefreshExpiryAsync(ct);
+        var row = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.SingleOrDefaultAsync(db.InventoryReservations.Where(x => x.Id == id).Select(x => new { x.Id, x.MaterialId, x.ProjectId, x.Quantity, x.Status, x.ExpiresAt }), ct);
+        return row == null ? NotFound() : Ok(row);
+    }
+    [HttpPut("reservations/{id:guid}"), Authorize(Roles = "Administrator,ProjectManager,InventoryOfficer")]
+    public Task<ReservationDto> EditReservation(Guid id, ReservationWriteDto dto, CancellationToken ct) => operations.EditReservationAsync(id, dto, false, ct);
+    [HttpPost("reservations/{id:guid}/consume"), Authorize(Roles = "Administrator,ProjectManager,InventoryOfficer")]
+    public Task<ReservationDto> Consume(Guid id, ReservationWriteDto dto, CancellationToken ct) => operations.EditReservationAsync(id, dto, true, ct, ActorId);
+    [HttpPost("movements/{id:guid}/reverse"), Authorize(Roles = "Administrator,ProjectManager,InventoryOfficer")]
+    public async Task<IActionResult> Reverse(Guid id, CancellationToken ct) { await operations.ReverseMovementAsync(id, ActorId!.Value, ct); return NoContent(); }
+    [HttpGet("movements/{id:guid}")]
+    public async Task<IActionResult> Movement(Guid id, CancellationToken ct)
+    {
+        var row = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.SingleOrDefaultAsync(db.StockMovements.Where(x => x.Id == id).Select(x => new { x.Id, x.MaterialId, materialName = x.Material.Name, x.Type, x.Quantity, x.StockAfter, x.ActorId, x.Reference, x.CreatedAt, x.ReversedAt, x.ReversalOfId }), ct);
+        return row == null ? NotFound() : Ok(row);
+    }
 }

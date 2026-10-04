@@ -34,7 +34,7 @@ public sealed class ReservationWriteDto
 
 public sealed record InventoryPageQuery(string? Search = null, Guid? WarehouseId = null, string? Sort = null, bool Desc = false, int Page = 1, int PageSize = 20);
 public sealed record InventoryPageResult<T>(IReadOnlyList<T> Items, int Total, int Page, int PageSize);
-public sealed record StockMovementDto(Guid Id, Guid MaterialId, string MaterialName, string Type, decimal Quantity, decimal StockAfter, Guid? ActorId, string? Reference, DateTimeOffset CreatedAt);
+public sealed record StockMovementDto(Guid Id, Guid MaterialId, string MaterialName, string Type, decimal Quantity, decimal StockAfter, Guid? ActorId, string? Reference, DateTimeOffset CreatedAt, DateTimeOffset? ReversedAt = null, Guid? ReversalOfId = null);
 public sealed record InventoryReservationDetailsDto(Guid Id, Guid MaterialId, string MaterialName, decimal Quantity, Guid? ProjectId, string Status, DateTimeOffset ExpiresAt, DateTimeOffset? ReleasedAt, DateTimeOffset CreatedAt);
 
 public sealed class MaterialRequirementDto

@@ -25,6 +25,19 @@ public sealed class BuildFlowDbContext(DbContextOptions<BuildFlowDbContext> opti
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        SchedulingModel.Configure(modelBuilder);
+        foreach (var entry in new[] { (typeof(Supplier), "Suppliers"), (typeof(SupplierMaterial), "SupplierMaterials"), (typeof(SupplierQuotation), "SupplierQuotations"), (typeof(PurchaseRequest), "PurchaseRequests"), (typeof(PurchaseOrder), "PurchaseOrders"), (typeof(Delivery), "Deliveries") })
+            modelBuilder.Entity(entry.Item1).ToTable(entry.Item2, table => table.ExcludeFromMigrations());
+        modelBuilder.Entity<SupplierMaterial>().HasOne(x => x.Supplier).WithMany().HasForeignKey(x => x.SupplierId).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<SupplierMaterial>().HasOne<Material>().WithMany().HasForeignKey(x => x.MaterialId).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<SupplierQuotation>().HasOne(x => x.Supplier).WithMany().HasForeignKey(x => x.SupplierId).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<SupplierQuotation>().HasOne<Material>().WithMany().HasForeignKey(x => x.MaterialId).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<PurchaseRequest>().HasOne<Project>().WithMany().HasForeignKey(x => x.ProjectId).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<PurchaseRequest>().HasOne<Material>().WithMany().HasForeignKey(x => x.MaterialId).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<PurchaseOrder>().HasOne<PurchaseRequest>().WithMany().HasForeignKey(x => x.PurchaseRequestId).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<PurchaseOrder>().HasOne<Supplier>().WithMany().HasForeignKey(x => x.SupplierId).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<PurchaseOrder>().HasOne<SupplierQuotation>().WithMany().HasForeignKey(x => x.QuotationId).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<Delivery>().HasOne<PurchaseOrder>().WithMany().HasForeignKey(x => x.PurchaseOrderId).OnDelete(DeleteBehavior.Restrict);
         var user = modelBuilder.Entity<AppUser>();
         user.ToTable("Users");
         user.HasKey(item => item.Id);
@@ -121,6 +134,8 @@ public sealed class BuildFlowDbContext(DbContextOptions<BuildFlowDbContext> opti
         reservation.Property(r => r.Quantity).HasPrecision(18, 3);
         reservation.HasIndex(r => new { r.MaterialId, r.Status });
         reservation.HasOne(r => r.Material).WithMany().HasForeignKey(r => r.MaterialId).OnDelete(DeleteBehavior.Restrict);
+        reservation.HasOne<Project>().WithMany().HasForeignKey(r => r.ProjectId).OnDelete(DeleteBehavior.Restrict);
+        reservation.HasOne<WorkSchedule>().WithMany().HasForeignKey(r => r.ScheduleId).OnDelete(DeleteBehavior.Restrict);
 
         var movement = modelBuilder.Entity<StockMovement>();
         movement.ToTable("StockMovements");
@@ -131,6 +146,8 @@ public sealed class BuildFlowDbContext(DbContextOptions<BuildFlowDbContext> opti
         movement.Property(m => m.Reference).HasMaxLength(200);
         movement.HasIndex(m => new { m.MaterialId, m.CreatedAt });
         movement.HasOne(m => m.Material).WithMany().HasForeignKey(m => m.MaterialId).OnDelete(DeleteBehavior.Restrict);
+        movement.HasOne<StockMovement>().WithMany().HasForeignKey(m => m.ReversalOfId).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<ProgressUpdate>().HasOne<ProgressUpdate>().WithMany().HasForeignKey(x => x.CorrectionOfId).OnDelete(DeleteBehavior.Restrict);
 
         var seededAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
         var roleIds = new[]

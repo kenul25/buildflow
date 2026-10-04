@@ -11,6 +11,7 @@ namespace BuildFlow.Api.Services;
 public interface IPlanningClient
 {
     Task<JsonElement> PlanAsync(object request, CancellationToken ct);
+    Task<JsonElement> ExecuteAsync(object task, CancellationToken ct);
 }
 
 public sealed class PlanningServiceException(string code, JsonElement? executionSummary = null) : HttpRequestException(code)
@@ -21,6 +22,13 @@ public sealed class PlanningServiceException(string code, JsonElement? execution
 
 public sealed class PlanningClient(HttpClient http, IConfiguration config) : IPlanningClient
 {
+    public async Task<JsonElement> ExecuteAsync(object task, CancellationToken ct)
+    {
+        using var message = new HttpRequestMessage(HttpMethod.Post, "internal/agents") { Content = JsonContent.Create(task) };
+        message.Headers.Add("X-BuildFlow-Key", config["Planning:InternalKey"] ?? throw new InvalidOperationException("Internal key is required."));
+        using var response = await http.SendAsync(message, ct); response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: ct);
+    }
     public async Task<JsonElement> PlanAsync(object request, CancellationToken ct)
     {
         using var message = new HttpRequestMessage(HttpMethod.Post, "internal/plans") { Content = JsonContent.Create(request) };
@@ -71,6 +79,8 @@ public sealed class ConstructionOperationsService(BuildFlowDbContext db, IPlanni
 
     public async Task<ProgressDto> UpdateProgressAsync(Guid activityId, ProgressWriteDto dto, Guid actorId, bool manager, CancellationToken ct)
     {
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        await db.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(42001001)", ct);
         var activity = await ActivityAsync(activityId, actorId, manager, ct);
         if (dto.ProgressPercent < activity.ProgressPercent) throw new ApiException(409, "progress_regression", "Progress cannot decrease.");
         var update = new ProgressUpdate { Id = Guid.NewGuid(), ActivityId = activityId, ProgressPercent = dto.ProgressPercent, WorkCompleted = dto.WorkCompleted.Trim(), Blockers = dto.Blockers?.Trim(), SubmittedById = actorId };
@@ -79,6 +89,7 @@ public sealed class ConstructionOperationsService(BuildFlowDbContext db, IPlanni
         activity.UpdatedById = actorId;
         db.ProgressUpdates.Add(update);
         await db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
         return new(update.Id, activityId, update.ProgressPercent, update.WorkCompleted, update.Blockers, actorId, update.CreatedAt);
     }
 
@@ -91,24 +102,28 @@ public sealed class ConstructionOperationsService(BuildFlowDbContext db, IPlanni
 
     public async Task<ResourceRequestDto> SubmitRequestAsync(ResourceRequestWriteDto dto, Guid actorId, bool manager, CancellationToken ct)
     {
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        await db.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(42001001)", ct);
         var activity = await ActivityAsync(dto.ActivityId, actorId, manager, ct);
         if (activity.Phase.SiteId != dto.SiteId || activity.Phase.Site.ProjectId != dto.ProjectId) throw new ApiException(400, "invalid_relationship", "Project, site and activity must belong to the same hierarchy.");
         if (dto.Items.Count == 0 || dto.Items.Count > 50) throw new ApiException(400, "invalid_items", "Provide between 1 and 50 resource items.");
         if (dto.Items.Any(i => i.Kind is not ("Material" or "Equipment" or "Workforce") || string.IsNullOrWhiteSpace(i.Name) || i.Name.Length > 160 || i.Quantity <= 0 || i.Quantity > 999999999 || string.IsNullOrWhiteSpace(i.Unit) || i.Unit.Length > 32))
             throw new ApiException(400, "invalid_items", "Each resource needs a valid type, name, quantity and unit.");
+        if (dto.Items.Any(x => x.Kind != "Material" && decimal.Truncate(x.Quantity) != x.Quantity)) throw new ApiException(400, "invalid_items", "Workforce and equipment quantities must be whole numbers.");
         if (dto.RequiredBy < DateOnly.FromDateTime(DateTime.UtcNow)) throw new ApiException(400, "invalid_date", "Required date cannot be in the past.");
         var request = new ResourceRequest { Id = Guid.NewGuid(), ProjectId = dto.ProjectId, SiteId = dto.SiteId, ActivityId = dto.ActivityId, Objective = dto.Objective.Trim(), RequiredBy = dto.RequiredBy, BudgetLimit = dto.BudgetLimit, Notes = dto.Notes?.Trim(), SubmittedById = actorId,
             Items = dto.Items.Select(i => new ResourceRequestItem { Id = Guid.NewGuid(), Kind = i.Kind, Name = i.Name.Trim(), Quantity = i.Quantity, Unit = i.Unit.Trim() }).ToList() };
         db.ResourceRequests.Add(request);
         await db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
         return Map(request);
     }
 
     public async Task<IReadOnlyList<ResourceRequestSummaryDto>> ListRequestsAsync(Guid actorId, bool manager, CancellationToken ct)
     {
-        var query = db.ResourceRequests.AsNoTracking();
+        var query = db.ResourceRequests.AsNoTracking().Where(r => r.Status != "Cancelled");
         if (!manager) query = query.Where(r => r.Project.AssignedEngineerId == actorId);
-        return await query.OrderByDescending(r => r.CreatedAt).Take(100).Select(r => new ResourceRequestSummaryDto(
+        return await query.OrderByDescending(r => r.CreatedAt).Select(r => new ResourceRequestSummaryDto(
             r.Id, r.ProjectId, r.ActivityId, r.Objective, r.CreatedAt,
             db.PlanningWorkflows.Where(w => w.ResourceRequestId == r.Id).Select(w => (Guid?)w.Id).FirstOrDefault(),
             db.PlanningWorkflows.Where(w => w.ResourceRequestId == r.Id).Select(w => w.Status).FirstOrDefault()
@@ -117,10 +132,13 @@ public sealed class ConstructionOperationsService(BuildFlowDbContext db, IPlanni
 
     public async Task<WorkflowDto> StartPlanningAsync(Guid requestId, Guid actorId, bool manager, CancellationToken ct)
     {
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        await db.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(42001001)", ct);
         var request = await db.ResourceRequests.Include(r => r.Items).Include(r => r.Project).Include(r => r.Site).Include(r => r.Activity).FirstOrDefaultAsync(r => r.Id == requestId, ct) ?? throw Missing();
+        if (request.Status == "Cancelled") throw new ApiException(409, "cancelled_request", "Cancelled requests cannot be planned.");
         await ActivityAsync(request.ActivityId, actorId, manager, ct);
         var existing = await db.PlanningWorkflows.FirstOrDefaultAsync(w => w.ResourceRequestId == requestId, ct);
-        if (existing is not null && existing.Status != "Failed") return Map(existing);
+        if (existing is not null && existing.Status is not ("Failed" or "RevisionRequested")) return Map(existing);
         var priorHistory = ReadExecutionHistory(existing?.PlanJson, existing?.Error);
         var workflow = existing ?? new PlanningWorkflow { Id = Guid.NewGuid(), ResourceRequestId = requestId };
         workflow.Status = "Queued";
@@ -193,7 +211,8 @@ public sealed class ConstructionOperationsService(BuildFlowDbContext db, IPlanni
             workflow.PlanJson = FailureEnvelope(workflow.Id,
                 LocalFailureSummary(workflow.Id, attemptStarted, workflow.CompletedAt.Value, workflow.Error), priorHistory);
         }
-        await db.SaveChangesAsync(ct);
+        await db.SaveChangesAsync(CancellationToken.None);
+        await tx.CommitAsync(CancellationToken.None);
         return Map(workflow);
     }
 
@@ -263,7 +282,7 @@ public sealed class ConstructionOperationsService(BuildFlowDbContext db, IPlanni
 
     public async Task<(byte[] Content, string ContentType)> GetPhotoAsync(Guid id, Guid actorId, bool manager, CancellationToken ct)
     {
-        var photo = await db.SitePhotos.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id, ct) ?? throw Missing();
+        var photo = await db.SitePhotos.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id && !x.IsArchived, ct) ?? throw Missing();
         await ActivityAsync(photo.ActivityId, actorId, manager, ct);
         return (await File.ReadAllBytesAsync(Path.Combine(environment.ContentRootPath, "uploads", "site-photos", photo.StorageName), ct), photo.ContentType);
     }
@@ -282,6 +301,8 @@ public sealed class ConstructionOperationsService(BuildFlowDbContext db, IPlanni
                 foreach (var entry in older.EnumerateArray()) history.Add(JsonNode.Parse(entry.GetRawText()));
             if (root.TryGetProperty("executionSummary", out var summary) && summary.ValueKind == JsonValueKind.Object)
                 history.Add(JsonNode.Parse(summary.GetRawText()));
+            if (root.TryGetProperty("approval", out var approval) && approval.ValueKind == JsonValueKind.Object)
+                history.Add(new JsonObject { ["approval"] = JsonNode.Parse(approval.GetRawText()) });
             if (!string.IsNullOrWhiteSpace(previousError))
                 history.Add(new JsonObject { ["workflowStatus"] = "Failed", ["error"] = previousError });
         }

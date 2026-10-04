@@ -7,11 +7,26 @@ public sealed class BuildFlowDbContextFactory : IDesignTimeDbContextFactory<Buil
 {
     public BuildFlowDbContext CreateDbContext(string[] args)
     {
-        var connectionString = Environment.GetEnvironmentVariable("BUILDFLOW_CONNECTION_STRING")
-            ?? "Host=localhost;Database=buildflow;Username=postgres;Password=postgres";
+        var connectionString = MigrationConnection.Resolve();
         var options = new DbContextOptionsBuilder<BuildFlowDbContext>()
             .UseNpgsql(connectionString)
             .Options;
         return new BuildFlowDbContext(options);
+    }
+}
+
+internal static class MigrationConnection
+{
+    public static string Resolve()
+    {
+        var directory = Path.GetDirectoryName(typeof(BuildFlowDbContextFactory).Assembly.Location)!;
+        var configuration = new ConfigurationBuilder().SetBasePath(directory)
+            .AddJsonFile("appsettings.json", optional: true)
+            .AddJsonFile("appsettings.Development.json", optional: true)
+            .AddUserSecrets("1e423a1e-65a2-4452-94d0-4566928104f5")
+            .AddEnvironmentVariables().Build();
+        return Environment.GetEnvironmentVariable("BUILDFLOW_CONNECTION_STRING")
+            ?? configuration.GetConnectionString("DefaultConnection")
+            ?? throw new InvalidOperationException("Configure the migration database connection.");
     }
 }

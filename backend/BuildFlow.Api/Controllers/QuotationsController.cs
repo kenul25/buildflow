@@ -13,10 +13,21 @@ namespace BuildFlow.Api.Controllers;
 public class QuotationsController : ControllerBase
 {
     private readonly AppDbContext _context;
+    private readonly BuildFlowDbContext _inventory;
 
-    public QuotationsController(AppDbContext context)
+    public QuotationsController(AppDbContext context, BuildFlowDbContext inventory)
     {
         _context = context;
+        _inventory = inventory;
+    }
+
+    private async Task Normalize(CreateQuotationRequest request)
+    {
+        var material = await _inventory.Materials.SingleOrDefaultAsync(x => x.Id == request.MaterialId && !x.IsArchived) ?? throw new BuildFlow.Api.Services.ApiException(400, "invalid_material", "Select an active inventory material.");
+        request.MaterialName = material.Name;
+        request.DeliveryDate = BuildFlow.Api.Services.ProcurementService.Utc(request.DeliveryDate);
+        request.ValidUntil = request.ValidUntil is DateTime date ? BuildFlow.Api.Services.ProcurementService.Utc(date) : null;
+        if (request.ValidUntil == null || request.ValidUntil <= DateTime.UtcNow) throw new BuildFlow.Api.Services.ApiException(400, "expired_quote", "A future quotation expiry is required.");
     }
 
     // CREATE
@@ -24,6 +35,7 @@ public class QuotationsController : ControllerBase
     public async Task<IActionResult> CreateQuotation(
         CreateQuotationRequest request)
     {
+        await Normalize(request);
         if (string.IsNullOrWhiteSpace(request.MaterialName))
         {
             return BadRequest(new
@@ -74,6 +86,9 @@ public class QuotationsController : ControllerBase
 
         var quotation = new SupplierQuotation
         {
+            MaterialId = request.MaterialId,
+            Unit = (await _inventory.Materials.SingleAsync(x => x.Id == request.MaterialId)).Unit,
+            ValidUntil = request.ValidUntil,
             SupplierId = request.SupplierId,
             MaterialName = request.MaterialName.Trim(),
             Quantity = request.Quantity,
@@ -98,10 +113,12 @@ public class QuotationsController : ControllerBase
         string? search = null,
         int? supplierId = null,
         string sort = "deliveryDate",
-        bool desc = false)
+        bool desc = false, int page = 1, int pageSize = 100)
     {
+        if (page < 1 || pageSize is < 1 or > 100) return BadRequest(new { message = "Invalid pagination." });
         var query = _context.SupplierQuotations
             .Include(q => q.Supplier)
+            .Where(q => q.IsActive)
             .AsQueryable();
 
         // Search
@@ -155,13 +172,17 @@ public class QuotationsController : ControllerBase
                     : query.OrderBy(q => q.DeliveryDate)
         };
 
-        var quotations = await query
+        Response.Headers["X-Total-Count"] = (await query.CountAsync()).ToString();
+        var quotations = await ((IOrderedQueryable<SupplierQuotation>)query).ThenBy(x => x.Id).Skip((page - 1) * pageSize).Take(pageSize)
             .Select(q => new
             {
                 q.Id,
                 q.SupplierId,
                 SupplierName = q.Supplier.Name,
                 q.MaterialName,
+                q.MaterialId,
+                q.Unit,
+                q.ValidUntil,
                 q.Quantity,
                 q.UnitPrice,
                 q.DeliveryDate,
@@ -185,6 +206,9 @@ public class QuotationsController : ControllerBase
                 q.SupplierId,
                 SupplierName = q.Supplier.Name,
                 q.MaterialName,
+                q.MaterialId,
+                q.Unit,
+                q.ValidUntil,
                 q.Quantity,
                 q.UnitPrice,
                 q.DeliveryDate,
@@ -209,6 +233,8 @@ public class QuotationsController : ControllerBase
         int id,
         CreateQuotationRequest request)
     {
+        await Normalize(request);
+        if (await _context.PurchaseOrders.AnyAsync(x => x.QuotationId == id && x.Status != "Cancelled")) throw new BuildFlow.Api.Services.ApiException(409, "quote_in_use", "An active order uses this quotation.");
         var quotation = await _context.SupplierQuotations
             .FirstOrDefaultAsync(q => q.Id == id);
 
@@ -266,6 +292,9 @@ public class QuotationsController : ControllerBase
         }
 
         quotation.SupplierId = request.SupplierId;
+        quotation.MaterialId = request.MaterialId;
+        quotation.ValidUntil = request.ValidUntil;
+        quotation.Unit = (await _inventory.Materials.SingleAsync(x => x.Id == request.MaterialId)).Unit;
         quotation.MaterialName = request.MaterialName.Trim();
         quotation.Quantity = request.Quantity;
         quotation.UnitPrice = request.UnitPrice;
@@ -299,7 +328,7 @@ public class QuotationsController : ControllerBase
         // Therefore we cannot safely deactivate it without changing
         // the existing model/database structure.
 
-        _context.SupplierQuotations.Remove(quotation);
+        quotation.IsActive = false;
 
         await _context.SaveChangesAsync();
 

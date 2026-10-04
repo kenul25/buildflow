@@ -90,7 +90,8 @@ public sealed class InventoryService(BuildFlowDbContext db, IInventoryRepository
 
     public async Task<IReadOnlyList<MaterialDto>> ListMaterialsAsync(string? search, Guid? warehouseId, CancellationToken ct)
     {
-        var query = db.Materials.AsNoTracking().Include(m => m.Warehouse).AsQueryable();
+        await RefreshExpiryAsync(ct);
+        var query = db.Materials.AsNoTracking().Include(m => m.Warehouse).Where(m => !m.IsArchived);
         if (!string.IsNullOrWhiteSpace(search)) query = query.Where(m => EF.Functions.ILike(m.Name, $"%{search.Trim()}%"));
         if (warehouseId is Guid id) query = query.Where(m => m.WarehouseId == id);
         return await query.OrderBy(m => m.Name).ThenBy(m => m.Unit).Select(Map).ToListAsync(ct);
@@ -99,7 +100,8 @@ public sealed class InventoryService(BuildFlowDbContext db, IInventoryRepository
     public async Task<InventoryPageResult<MaterialDto>> ListMaterialsAsync(InventoryPageQuery query, CancellationToken ct)
     {
         ValidatePage(query.Page, query.PageSize);
-        IQueryable<Material> rows = repository.Materials.AsNoTracking().Include(m => m.Warehouse);
+        await RefreshExpiryAsync(ct);
+        IQueryable<Material> rows = repository.Materials.AsNoTracking().Include(m => m.Warehouse).Where(m => !m.IsArchived);
         if (!string.IsNullOrWhiteSpace(query.Search)) rows = rows.Where(m => EF.Functions.ILike(m.Name, $"%{query.Search.Trim()}%") || EF.Functions.ILike(m.Category, $"%{query.Search.Trim()}%"));
         if (query.WarehouseId is Guid warehouseId) rows = rows.Where(m => m.WarehouseId == warehouseId);
         var total = await rows.CountAsync(ct);
@@ -113,14 +115,17 @@ public sealed class InventoryService(BuildFlowDbContext db, IInventoryRepository
         return new(items, total, query.Page, query.PageSize);
     }
 
-    public async Task<MaterialDto> GetMaterialAsync(Guid id, CancellationToken ct) =>
-        await db.Materials.AsNoTracking().Include(m => m.Warehouse).Where(m => m.Id == id).Select(Map).SingleOrDefaultAsync(ct)
-        ?? throw MissingMaterial();
+    public async Task<MaterialDto> GetMaterialAsync(Guid id, CancellationToken ct)
+    {
+        await RefreshExpiryAsync(ct);
+        return await db.Materials.AsNoTracking().Include(m => m.Warehouse).Where(m => m.Id == id && !m.IsArchived).Select(Map).SingleOrDefaultAsync(ct) ?? throw MissingMaterial();
+    }
 
     public async Task<MaterialDto> CreateMaterialAsync(MaterialWriteDto dto, CancellationToken ct)
     {
         await EnsureWarehouseAsync(dto.WarehouseId, ct);
         ValidateWrite(dto);
+        if (dto.ReservedStock != 0) throw Invalid("Reserved stock is managed through reservations.");
         var name = Required(dto.Name, "Material name");
         var unit = Required(dto.Unit, "Material unit");
         if (await db.Materials.AnyAsync(m => m.Name == name && m.Unit == unit && m.WarehouseId == dto.WarehouseId, ct))
@@ -128,30 +133,39 @@ public sealed class InventoryService(BuildFlowDbContext db, IInventoryRepository
         var material = new Material { Id = Guid.NewGuid() };
         Apply(material, dto);
         db.Materials.Add(material);
+        if (material.CurrentStock > 0) db.StockMovements.Add(new StockMovement { Id = Guid.NewGuid(), MaterialId = material.Id, Type = "Opening", Quantity = material.CurrentStock, StockAfter = material.CurrentStock, Reference = "Opening stock" });
         await db.SaveChangesAsync(ct);
         return await GetMaterialAsync(material.Id, ct);
     }
 
     public async Task<MaterialDto> UpdateMaterialAsync(Guid id, MaterialWriteDto dto, CancellationToken ct)
     {
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        await InventoryLockAsync(ct);
         await EnsureWarehouseAsync(dto.WarehouseId, ct);
         ValidateWrite(dto);
-        var material = await db.Materials.SingleOrDefaultAsync(m => m.Id == id, ct) ?? throw MissingMaterial();
+        var material = await LockMaterialAsync(id, ct);
+        await ExpireReservationsAsync(id, ct);
+        if (dto.CurrentStock != material.CurrentStock || dto.ReservedStock != material.ReservedStock) throw new ApiException(409, "stock_managed", "Stock changed or is being edited directly. Refresh and use receive, issue, return or an audited correction.");
+        if ((material.Unit != dto.Unit.Trim() || material.WarehouseId != dto.WarehouseId) && await db.StockMovements.AnyAsync(x => x.MaterialId == id, ct)) throw Invalid("Unit and warehouse cannot change after stock history exists.");
         if (await db.Materials.AnyAsync(m => m.Id != id && m.Name == dto.Name.Trim() && m.Unit == dto.Unit.Trim() && m.WarehouseId == dto.WarehouseId, ct))
             throw new ApiException(409, "duplicate_material", "This material already exists in the warehouse.");
         Apply(material, dto);
         await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
         return await GetMaterialAsync(id, ct);
     }
 
     public async Task DeleteMaterialAsync(Guid id, CancellationToken ct)
     {
-        var material = await db.Materials.SingleOrDefaultAsync(m => m.Id == id, ct)
-            ?? throw MissingMaterial();
-        if (await db.InventoryReservations.AnyAsync(r => r.MaterialId == id, ct))
-            throw new ApiException(409, "material_has_reservations", "Materials with reservation history cannot be deleted.");
-        db.Materials.Remove(material);
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        await InventoryLockAsync(ct);
+        var material = await LockMaterialAsync(id, ct);
+        await ExpireReservationsAsync(id, ct);
+        if (material.CurrentStock != 0 || material.ReservedStock != 0) throw new ApiException(409, "material_has_stock", "Issue or correct remaining stock before archiving the material.");
+        material.IsArchived = true;
         await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
     }
 
     public Task<MaterialDto> ReceiveAsync(Guid id, decimal quantity, Guid? actorId, string? reference, CancellationToken ct) => AdjustStockAsync(id, quantity, "Receive", actorId, reference, ct);
@@ -163,6 +177,7 @@ public sealed class InventoryService(BuildFlowDbContext db, IInventoryRepository
         EnsurePositive(quantity);
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         var material = await LockMaterialAsync(id, ct);
+        await ExpireReservationsAsync(id, ct);
         if (movementType == "Issue" && material.AvailableStock < quantity)
             throw new ApiException(409, "insufficient_stock", $"Only {material.AvailableStock:0.###} {material.Unit} is available.");
         material.CurrentStock += movementType == "Issue" ? -quantity : quantity;
@@ -179,15 +194,17 @@ public sealed class InventoryService(BuildFlowDbContext db, IInventoryRepository
 
     public async Task<IReadOnlyList<MaterialDto>> LowStockAsync(decimal threshold, CancellationToken ct)
     {
+        await RefreshExpiryAsync(ct);
         if (threshold < 0) throw Invalid("Threshold cannot be negative.");
-        return await db.Materials.AsNoTracking().Include(m => m.Warehouse).Where(m => m.CurrentStock - m.ReservedStock <= threshold).OrderBy(m => m.CurrentStock - m.ReservedStock).Select(Map).ToListAsync(ct);
+        return await db.Materials.AsNoTracking().Include(m => m.Warehouse).Where(m => !m.IsArchived && m.CurrentStock - m.ReservedStock <= threshold).OrderBy(m => m.CurrentStock - m.ReservedStock).Select(Map).ToListAsync(ct);
     }
 
     public async Task<IReadOnlyList<LowStockAlertDto>> GetLowStockAlertsAsync(decimal threshold, CancellationToken ct)
     {
+        await RefreshExpiryAsync(ct);
         if (threshold < 0) throw Invalid("Threshold cannot be negative.");
         return await db.Materials.AsNoTracking()
-            .Where(m => m.CurrentStock - m.ReservedStock <= threshold)
+            .Where(m => !m.IsArchived && m.CurrentStock - m.ReservedStock <= threshold)
             .OrderBy(m => m.CurrentStock - m.ReservedStock)
             .Select(m => new LowStockAlertDto(
                 m.Id, m.Name, m.Unit, m.WarehouseId, m.CurrentStock - m.ReservedStock, threshold,
@@ -200,10 +217,11 @@ public sealed class InventoryService(BuildFlowDbContext db, IInventoryRepository
 
     public async Task<MaterialAvailabilityReport> CheckAvailabilityAsync(IEnumerable<MaterialRequirementDto> requirements, CancellationToken ct)
     {
+        await RefreshExpiryAsync(ct);
         var requested = requirements.GroupBy(r => new { Name = r.Name.Trim().ToUpperInvariant(), Unit = r.Unit.Trim().ToUpperInvariant() })
             .Select(group => new { group.Key.Name, group.Key.Unit, Required = group.Sum(r => r.RequiredQuantity) }).ToList();
         var names = requested.Select(r => r.Name).ToArray();
-        var materials = await db.Materials.AsNoTracking().Where(m => names.Contains(m.Name.ToUpper())).ToListAsync(ct);
+        var materials = await db.Materials.AsNoTracking().Where(m => !m.IsArchived && names.Contains(m.Name.ToUpper())).ToListAsync(ct);
         var items = requested.Select(required =>
         {
             var matches = materials.Where(m => string.Equals(m.Name, required.Name, StringComparison.OrdinalIgnoreCase) && string.Equals(m.Unit, required.Unit, StringComparison.OrdinalIgnoreCase));
@@ -218,6 +236,7 @@ public sealed class InventoryService(BuildFlowDbContext db, IInventoryRepository
 
     public async Task<ReservationDto> ReserveAsync(Guid materialId, ReservationWriteDto dto, CancellationToken ct)
     {
+        if (dto.ProjectId == null || !await db.Projects.AnyAsync(p => p.Id == dto.ProjectId && !p.IsArchived, ct)) throw Invalid("An active project is required for a reservation.");
         EnsurePositive(dto.Quantity);
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         var material = await LockMaterialAsync(materialId, ct);
@@ -239,6 +258,7 @@ public sealed class InventoryService(BuildFlowDbContext db, IInventoryRepository
     public async Task ReleaseReservationAsync(Guid reservationId, CancellationToken ct)
     {
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        await InventoryLockAsync(ct);
         var reservation = await db.InventoryReservations.SingleOrDefaultAsync(r => r.Id == reservationId, ct)
             ?? throw new ApiException(404, "reservation_not_found", "The reservation was not found.");
         if (reservation.Status != "Active") return;
@@ -252,6 +272,7 @@ public sealed class InventoryService(BuildFlowDbContext db, IInventoryRepository
 
     public async Task<InventoryPageResult<InventoryReservationDetailsDto>> ListReservationsAsync(Guid? materialId, int page, int pageSize, CancellationToken ct)
     {
+        await RefreshExpiryAsync(ct);
         ValidatePage(page, pageSize);
         IQueryable<InventoryReservation> rows = repository.Reservations.AsNoTracking().Include(r => r.Material);
         if (materialId is Guid id) rows = rows.Where(r => r.MaterialId == id);
@@ -268,14 +289,61 @@ public sealed class InventoryService(BuildFlowDbContext db, IInventoryRepository
         if (materialId is Guid id) rows = rows.Where(m => m.MaterialId == id);
         var total = await rows.CountAsync(ct);
         var items = await rows.OrderByDescending(m => m.CreatedAt).Skip((page - 1) * pageSize).Take(pageSize)
-            .Select(m => new StockMovementDto(m.Id, m.MaterialId, m.Material.Name, m.Type, m.Quantity, m.StockAfter, m.ActorId, m.Reference, m.CreatedAt)).ToListAsync(ct);
+            .Select(m => new StockMovementDto(m.Id, m.MaterialId, m.Material.Name, m.Type, m.Quantity, m.StockAfter, m.ActorId, m.Reference, m.CreatedAt, m.ReversedAt, m.ReversalOfId)).ToListAsync(ct);
         return new(items, total, page, pageSize);
     }
 
     private async Task<Material> LockMaterialAsync(Guid id, CancellationToken ct)
     {
+        await InventoryLockAsync(ct);
         var material = await db.Materials.FromSqlInterpolated($"SELECT * FROM \"Materials\" WHERE \"Id\" = {id} FOR UPDATE").SingleOrDefaultAsync(ct);
-        return material ?? throw MissingMaterial();
+        return material is { IsArchived: false } ? material : throw MissingMaterial();
+    }
+
+    public Task InventoryLockAsync(CancellationToken ct) => db.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(42002001)", ct);
+    public async Task RefreshExpiryAsync(CancellationToken ct)
+    {
+        if (db.Database.CurrentTransaction != null) return;
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        await InventoryLockAsync(ct);
+        var ids = await db.InventoryReservations.Where(x => x.Status == "Active" && x.ExpiresAt <= DateTimeOffset.UtcNow).Select(x => x.MaterialId).Distinct().OrderBy(x => x).ToListAsync(ct);
+        foreach (var id in ids) await ExpireReservationsAsync(id, ct);
+        await db.SaveChangesAsync(ct); await tx.CommitAsync(ct);
+    }
+
+    public async Task<ReservationDto> EditReservationAsync(Guid id, ReservationWriteDto dto, bool consume, CancellationToken ct, Guid? actor = null)
+    {
+        EnsurePositive(dto.Quantity);
+        await using var tx = await db.Database.BeginTransactionAsync(ct); await InventoryLockAsync(ct);
+        var row = await db.InventoryReservations.SingleOrDefaultAsync(x => x.Id == id, ct) ?? throw new ApiException(404, "not_found", "Reservation not found.");
+        var material = await LockMaterialAsync(row.MaterialId, ct); await ExpireReservationsAsync(row.MaterialId, ct);
+        if (row.Status != "Active") throw new ApiException(409, "inactive_reservation", "Only active reservations can be changed.");
+        if (consume)
+        {
+            material.ReservedStock -= row.Quantity; material.CurrentStock -= row.Quantity; row.Status = "Consumed"; row.ReleasedAt = DateTimeOffset.UtcNow;
+            db.StockMovements.Add(new StockMovement { Id = Guid.NewGuid(), MaterialId = material.Id, Type = "Issue", Quantity = row.Quantity, StockAfter = material.CurrentStock, ActorId = actor, Reference = $"Reservation {id}" });
+        }
+        else
+        {
+            if (dto.ProjectId == null || !await db.Projects.AnyAsync(p => p.Id == dto.ProjectId && !p.IsArchived, ct)) throw Invalid("An active project is required.");
+            if (dto.Quantity > material.AvailableStock + row.Quantity) throw new ApiException(409, "insufficient_stock", "Reservation exceeds available stock.");
+            material.ReservedStock += dto.Quantity - row.Quantity; row.Quantity = dto.Quantity; row.ProjectId = dto.ProjectId; row.ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(dto.DurationMinutes);
+        }
+        await db.SaveChangesAsync(ct); await tx.CommitAsync(ct);
+        return new(row.Id, row.MaterialId, row.Quantity, row.ProjectId, row.Status, row.ExpiresAt);
+    }
+
+    public async Task ReverseMovementAsync(Guid id, Guid actor, CancellationToken ct)
+    {
+        await using var tx = await db.Database.BeginTransactionAsync(ct); await InventoryLockAsync(ct);
+        var row = await db.StockMovements.SingleOrDefaultAsync(x => x.Id == id, ct) ?? throw new ApiException(404, "not_found", "Movement not found.");
+        if (row.ReversedAt != null || row.ReversalOfId != null || row.Reference != null && (row.Reference.StartsWith("Delivery ") || row.Reference.StartsWith("Reservation "))) throw new ApiException(409, "cannot_reverse", "This movement is already reversed or belongs to a managed receipt/reservation.");
+        var material = await LockMaterialAsync(row.MaterialId, ct); await ExpireReservationsAsync(row.MaterialId, ct);
+        var delta = row.Type == "Issue" ? row.Quantity : -row.Quantity;
+        if (material.CurrentStock + delta < material.ReservedStock) throw new ApiException(409, "insufficient_stock", "Reversal would consume reserved or unavailable stock.");
+        material.CurrentStock += delta; row.ReversedAt = DateTimeOffset.UtcNow;
+        db.StockMovements.Add(new StockMovement { Id = Guid.NewGuid(), MaterialId = material.Id, Type = delta > 0 ? "Return" : "Issue", Quantity = row.Quantity, StockAfter = material.CurrentStock, ActorId = actor, ReversalOfId = id, Reference = $"Correction of {id}" });
+        await db.SaveChangesAsync(ct); await tx.CommitAsync(ct);
     }
 
     private async Task ExpireReservationsAsync(Guid materialId, CancellationToken ct)

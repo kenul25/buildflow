@@ -9,6 +9,7 @@ public sealed class Warehouse : BaseEntity
 
 public sealed class Material : BaseEntity
 {
+    public bool IsArchived { get; set; }
     public string Name { get; set; } = "";
     public string Category { get; set; } = "";
     public string Unit { get; set; } = "";
@@ -28,6 +29,7 @@ public sealed class Material : BaseEntity
 
 public sealed class InventoryReservation : BaseEntity
 {
+    public Guid? ScheduleId { get; set; }
     public Guid MaterialId { get; set; }
     public Material Material { get; set; } = null!;
     public decimal Quantity { get; set; }
@@ -39,6 +41,8 @@ public sealed class InventoryReservation : BaseEntity
 
 public sealed class StockMovement : BaseEntity
 {
+    public DateTimeOffset? ReversedAt { get; set; }
+    public Guid? ReversalOfId { get; set; }
     public Guid MaterialId { get; set; }
     public Material Material { get; set; } = null!;
     public string Type { get; set; } = "Receive";

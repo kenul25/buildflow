@@ -41,7 +41,7 @@ public class SupplierMaterialsController : ControllerBase
         }
 
         var material = await _buildFlowContext.Materials
-            .FirstOrDefaultAsync(m => m.Id == request.MaterialId);
+            .FirstOrDefaultAsync(m => m.Id == request.MaterialId && !m.IsArchived);
 
         if (material == null)
         {
@@ -85,13 +85,16 @@ public class SupplierMaterialsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetSupplierMaterials()
+    public async Task<IActionResult> GetSupplierMaterials(string? search = null, int? supplierId = null, int page = 1, int pageSize = 100, bool desc = false)
     {
-        var supplierMaterials = await _context.SupplierMaterials
+        if (page < 1 || pageSize is < 1 or > 100) return BadRequest(new { message = "Invalid pagination." });
+        var query = _context.SupplierMaterials.AsNoTracking().Where(x => x.IsActive && x.Supplier.IsActive);
+        if (supplierId != null) query = query.Where(x => x.SupplierId == supplierId);
+        if (!string.IsNullOrWhiteSpace(search)) query = query.Where(x => EF.Functions.ILike(x.Supplier.Name, $"%{search.Trim()}%"));
+        Response.Headers["X-Total-Count"] = (await query.CountAsync()).ToString();
+        var supplierMaterials = await (desc ? query.OrderByDescending(x => x.UpdatedAt) : query.OrderBy(x => x.UpdatedAt)).ThenBy(x => x.Id)
+            .Skip((page - 1) * pageSize).Take(pageSize)
             .Include(sm => sm.Supplier)
-            .Where(sm => sm.IsActive)
-            .OrderBy(sm => sm.SupplierId)
-            .ThenBy(sm => sm.MaterialId)
             .Select(sm => new
             {
                 sm.Id,

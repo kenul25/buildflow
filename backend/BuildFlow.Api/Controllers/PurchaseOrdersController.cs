@@ -1,269 +1,34 @@
+using System.Security.Claims;
 using BuildFlow.Api.Data;
 using BuildFlow.Api.DTOs;
+using BuildFlow.Api.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace BuildFlow.Api.Controllers;
-
-[ApiController]
-[Route("api/[controller]")]
-public class PurchaseOrdersController : ControllerBase
+[ApiController, Route("api/PurchaseOrders"), Route("api/purchase-orders"), Authorize(Roles = "ProcurementOfficer,ProjectManager,Administrator,SiteEngineer")]
+public sealed class PurchaseOrdersController(AppDbContext db, ProcurementService service) : ControllerBase
 {
-    private readonly AppDbContext _context;
-
-    public PurchaseOrdersController(AppDbContext context)
+    private Guid Actor => Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+    private bool Office => User.IsInRole("ProcurementOfficer") || User.IsInRole("ProjectManager") || User.IsInRole("Administrator");
+    [HttpGet] public async Task<IActionResult> List(string? search, string? status, int page = 1, int pageSize = 100, string sort = "updatedAt", bool desc = true, CancellationToken ct = default)
     {
-        _context = context;
+        if (page < 1 || pageSize is < 1 or > 100) return BadRequest();
+        var projects = await service.ProjectsAsync(Actor, Office, ct);
+        var rows = db.PurchaseOrders.AsNoTracking().Where(x => Office || x.ProjectId != null && projects.Contains(x.ProjectId.Value));
+        if (!string.IsNullOrWhiteSpace(search)) rows = rows.Where(x => EF.Functions.ILike(x.MaterialName, $"%{search.Trim()}%"));
+        if (!string.IsNullOrWhiteSpace(status)) rows = rows.Where(x => x.Status == status);
+        Response.Headers["X-Total-Count"] = (await rows.CountAsync(ct)).ToString();
+        var ordered = sort.ToLowerInvariant() switch { "material" => desc ? rows.OrderByDescending(x => x.MaterialName) : rows.OrderBy(x => x.MaterialName), "quantity" => desc ? rows.OrderByDescending(x => x.Quantity) : rows.OrderBy(x => x.Quantity), "status" => desc ? rows.OrderByDescending(x => x.Status) : rows.OrderBy(x => x.Status), _ => desc ? rows.OrderByDescending(x => x.UpdatedAt) : rows.OrderBy(x => x.UpdatedAt) };
+        return Ok(await ordered.ThenBy(x => x.Id).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct));
     }
-
-    [HttpPost]
-    public async Task<IActionResult> CreatePurchaseOrder(
-        CreatePurchaseOrderRequest request)
+    [HttpGet("{id:int}")] public async Task<IActionResult> Get(int id, CancellationToken ct)
     {
-        var purchaseRequest = await _context.PurchaseRequests
-            .FirstOrDefaultAsync(p => p.Id == request.PurchaseRequestId);
-
-        if (purchaseRequest == null)
-        {
-            return NotFound(new
-            {
-                message = "Purchase request not found"
-            });
-        }
-
-        if (purchaseRequest.Status != "Approved")
-        {
-            return BadRequest(new
-            {
-                message = "Only approved purchase requests can be converted to purchase orders"
-            });
-        }
-
-        var supplier = await _context.Suppliers
-            .FirstOrDefaultAsync(s => s.Id == request.SupplierId);
-
-        if (supplier == null)
-        {
-            return NotFound(new
-            {
-                message = "Supplier not found"
-            });
-        }
-
-        if (!supplier.IsActive)
-        {
-            return BadRequest(new
-            {
-                message = "Supplier is not active"
-            });
-        }
-
-        if (request.UnitPrice <= 0)
-        {
-            return BadRequest(new
-            {
-                message = "Unit price must be greater than zero"
-            });
-        }
-
-        if (request.DeliveryDate <= DateTime.UtcNow)
-        {
-            return BadRequest(new
-            {
-                message = "Delivery date must be in the future"
-            });
-        }
-
-        if (request.DeliveryDate > purchaseRequest.RequiredByDate)
-        {
-            return BadRequest(new
-            {
-                message = "Delivery date cannot be after the required by date"
-            });
-        }
-
-        var existingOrder = await _context.PurchaseOrders
-            .FirstOrDefaultAsync(p => p.PurchaseRequestId == request.PurchaseRequestId);
-
-        if (existingOrder != null)
-        {
-            return BadRequest(new
-            {
-                message = "A purchase order already exists for this purchase request"
-            });
-        }
-
-        var totalCost = purchaseRequest.Quantity * request.UnitPrice;
-
-        var purchaseOrder = new BuildFlow.Api.Models.PurchaseOrder
-        {
-            PurchaseRequestId = purchaseRequest.Id,
-            SupplierId = supplier.Id,
-            MaterialName = purchaseRequest.MaterialName,
-            Quantity = purchaseRequest.Quantity,
-            UnitPrice = request.UnitPrice,
-            TotalCost = totalCost,
-            DeliveryDate = request.DeliveryDate,
-            Status = "Pending",
-            CreatedAt = DateTime.UtcNow
-        };
-
-        _context.PurchaseOrders.Add(purchaseOrder);
-
-        purchaseRequest.Status = "ConvertedToOrder";
-
-        await _context.SaveChangesAsync();
-
-        return Ok(purchaseOrder);
+        var row = await db.PurchaseOrders.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id, ct);
+        return row == null || !await service.VisibleAsync(row.ProjectId, Actor, Office, ct) ? NotFound() : Ok(row);
     }
-
-    [HttpGet]
-    public async Task<IActionResult> GetPurchaseOrders()
-    {
-        var purchaseOrders = await _context.PurchaseOrders
-            .ToListAsync();
-
-        return Ok(purchaseOrders);
-    }
-
-    [HttpGet("{id}")]
-    public async Task<IActionResult> GetPurchaseOrder(int id)
-    {
-        var purchaseOrder = await _context.PurchaseOrders
-            .FirstOrDefaultAsync(p => p.Id == id);
-
-        if (purchaseOrder == null)
-        {
-            return NotFound(new
-            {
-                message = "Purchase order not found"
-            });
-        }
-
-        return Ok(purchaseOrder);
-    }
-
-    [HttpPut("{id}")]
-    public async Task<IActionResult> UpdatePurchaseOrder(
-        int id,
-        CreatePurchaseOrderRequest request)
-    {
-        var purchaseOrder = await _context.PurchaseOrders
-            .FirstOrDefaultAsync(p => p.Id == id);
-
-        if (purchaseOrder == null)
-         {
-            return NotFound(new
-            {
-                message = "Purchase order not found"
-            });
-        }
-
-        if (purchaseOrder.Status != "Pending")
-        {
-            return BadRequest(new
-            {
-                message = "Only pending purchase orders can be updated"
-            });
-        }
-
-        var purchaseRequest = await _context.PurchaseRequests
-            .FirstOrDefaultAsync(p => p.Id == request.PurchaseRequestId);
-
-         if (purchaseRequest == null)
-        {
-            return NotFound(new
-            {
-                message = "Purchase request not found"
-            });
-        }
-
-        var supplier = await _context.Suppliers
-            .FirstOrDefaultAsync(s => s.Id == request.SupplierId);
-
-        if (supplier == null)
-        {
-            return NotFound(new
-            {
-                message = "Supplier not found"
-            });
-        }
- 
-        if (!supplier.IsActive)
-        {
-            return BadRequest(new
-            {
-                message = "Supplier is not active"
-            });
-        }
-
-        if (request.UnitPrice <= 0)
-        {
-            return BadRequest(new
-            {
-                message = "Unit price must be greater than zero"
-            });
-        }
-
-        if (request.DeliveryDate <= DateTime.UtcNow)
-        {
-            return BadRequest(new
-            {
-                message = "Delivery date must be in the future"
-            });
-        }
-
-        if (request.DeliveryDate > purchaseRequest.RequiredByDate)
-        {
-            return BadRequest(new
-            {
-                message = "Delivery date cannot be after the required by date"
-            });
-        }
-
-        purchaseOrder.PurchaseRequestId = purchaseRequest.Id;
-        purchaseOrder.SupplierId = supplier.Id;
-        purchaseOrder.MaterialName = purchaseRequest.MaterialName;
-        purchaseOrder.Quantity = purchaseRequest.Quantity;
-        purchaseOrder.UnitPrice = request.UnitPrice;
-        purchaseOrder.TotalCost = purchaseRequest.Quantity * request.UnitPrice;
-        purchaseOrder.DeliveryDate = request.DeliveryDate;
-
-        await _context.SaveChangesAsync();
-
-        return Ok(purchaseOrder);
-    }
-
-    [HttpDelete("{id}")]
-    public async Task<IActionResult> CancelPurchaseOrder(int id)
-    {
-        var purchaseOrder = await _context.PurchaseOrders
-            .FirstOrDefaultAsync(p => p.Id == id);
-
-        if (purchaseOrder == null)
-        {
-            return NotFound(new
-            {
-                message = "Purchase order not found"
-            });
-        }
-
-        if (purchaseOrder.Status != "Pending")
-        {
-            return BadRequest(new
-            {
-                message = "Only pending purchase orders can be cancelled"
-            });
-        }
-
-       purchaseOrder.Status = "Cancelled";
-
-        await _context.SaveChangesAsync();
-
-        return Ok(new
-        {
-            message = "Purchase order cancelled successfully",
-            purchaseOrder
-        });
-    }
+    [HttpPost, Authorize(Roles = "ProcurementOfficer,ProjectManager,Administrator")] public async Task<IActionResult> Create(CreatePurchaseOrderRequest dto, CancellationToken ct) => StatusCode(201, await service.WriteOrderAsync(null, dto, Actor, ct));
+    [HttpPut("{id:int}"), Authorize(Roles = "ProcurementOfficer,ProjectManager,Administrator")] public async Task<IActionResult> Update(int id, CreatePurchaseOrderRequest dto, CancellationToken ct) => Ok(await service.WriteOrderAsync(id, dto, Actor, ct));
+    [HttpDelete("{id:int}"), Authorize(Roles = "ProcurementOfficer,ProjectManager,Administrator")] public async Task<IActionResult> Cancel(int id, CancellationToken ct) { await service.CancelOrderAsync(id, Actor, ct); return NoContent(); }
 }
