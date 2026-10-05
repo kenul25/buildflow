@@ -46,3 +46,21 @@ test('workflow approval requires a reason and sends the chosen decision', async 
   fireEvent.click(approve)
   await waitFor(() => expect(api.post).toHaveBeenCalledWith('/workflows/plan/decision', { decision: 'Approved', reason: 'Resources verified' }, { timeout: 150000 }))
 })
+
+test('expired proposal requires a future start and submits the selected time for validation', async () => {
+  const workflow = { id: 'plan', resourceRequestId: 'request', status: 'PendingProjectManagerApproval', plan: { tasks: [{ task_id: 'schedule', agent: 'SchedulingValidationAgent', status: 'Completed', output: { startTime: '2020-01-01T08:00:00Z', endTime: '2020-01-01T09:00:00Z', workers: [], equipment: [], validation: { isValid: true } } }] } }
+  api.get.mockImplementation(path => Promise.resolve({ data: path === '/workflows' ? [{ id: 'plan', objective: 'Build masonry', status: workflow.status }] : path === '/workflows/plan' ? workflow : { objective: 'Build masonry', items: [] } }))
+  api.post.mockResolvedValue({ data: { ...workflow, status: 'Approved' } })
+  vi.spyOn(globalThis, 'confirm').mockReturnValue(true)
+  render(<WorkflowsPage />)
+  fireEvent.click(await screen.findByRole('button', { name: 'Review' }))
+  const approve = await screen.findByRole('button', { name: 'Approve', exact: true })
+  fireEvent.change(screen.getByLabelText('Decision reason'), { target: { value: 'Use the updated time' } })
+  expect(approve).toBeDisabled()
+  expect(screen.getByRole('button', { name: 'Reject', exact: true })).toBeEnabled()
+  const selected = '2099-01-01T10:00'
+  fireEvent.change(screen.getByLabelText('Schedule start'), { target: { value: selected } })
+  expect(approve).toBeEnabled()
+  fireEvent.click(approve)
+  await waitFor(() => expect(api.post).toHaveBeenCalledWith('/workflows/plan/decision', { decision: 'Approved', reason: 'Use the updated time', scheduleStart: new Date(selected).toISOString() }, { timeout: 150000 }))
+})
