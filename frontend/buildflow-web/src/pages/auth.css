@@ -1,0 +1,50 @@
+.auth-page {
+  min-height: calc(100svh - 74px);
+  display: grid;
+  grid-template-columns: 1fr;
+  place-items: center;
+  padding: 36px 24px;
+  background: radial-gradient(ellipse at 15% 15%, #e9f0ff 0, transparent 45%),
+    radial-gradient(ellipse at 90% 85%, #edf2ff 0, transparent 40%), #f8fafc;
+}
+
+.auth-container { width: min(100%, 460px); }
+.auth-back { display: inline-flex; align-items: center; gap: 8px; margin: 0 0 18px 4px; color: #526078; font-size: .875rem; font-weight: 500; transition: color .18s ease; }
+.auth-back svg { width: 18px; height: 18px; }
+.auth-back:hover { color: var(--blue); }
+.auth-page .auth-card { width: 100%; padding: 34px 36px 30px; border: 1px solid #e1e8f3; border-radius: 24px; background: #fff; box-shadow: 0 16px 48px -16px rgba(30, 58, 138, .16), 0 2px 6px rgba(15, 23, 42, .02); }
+.auth-card-header { margin-bottom: 28px; text-align: center; }
+.auth-brand-mark { position: relative; display: grid; place-items: center; width: 48px; height: 48px; margin: 0 auto 12px; border-radius: 14px; background: linear-gradient(145deg, #3779ff, #2355db); color: #fff; font: 800 1rem 'Manrope', sans-serif; box-shadow: 0 6px 14px rgba(37, 99, 235, .18); }
+.auth-brand-mark span { position: absolute; width: 8px; height: 8px; right: -2px; top: -2px; border: 2px solid white; border-radius: 50%; background: #60a5fa; }
+.auth-brand-name { color: #475569; font-size: .875rem; font-weight: 700; letter-spacing: -.02em; }
+.auth-brand-name strong { color: var(--blue); }
+.auth-card-header h1 { margin: 18px 0 8px; font-size: clamp(1.65rem, 4vw, 1.9rem); line-height: 1.25; letter-spacing: -.045em; }
+.auth-card-header p { margin: 0; color: #64748b; font-size: .9rem; line-height: 1.6; }
+.auth-page .auth-form { gap: 18px; }
+.auth-page .field { gap: 8px; font-size: .84rem; }
+.auth-page .field input { min-height: 50px; border-color: #dce3ee; border-radius: 10px; background: #fcfdff; font-weight: 400; transition: border-color .18s ease, box-shadow .18s ease; }
+.auth-page .field input::placeholder { color: #78869a; }
+.auth-page .field input:hover { border-color: #a9b8d0; }
+.auth-page .field input:focus { background: #fff; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(37, 99, 235, .12); }
+.auth-page .field input[aria-invalid="true"] { border-color: var(--red); }
+.auth-page .password-field input { padding-right: 3.25rem; }
+/* Edge adds its own reveal icon after typing; use the shared React toggle only. */
+.auth-page .password-field input::-ms-reveal { display: none; }
+.auth-page .password-field input::-ms-clear { display: none; }
+.auth-page .password-field button { display: grid; place-items: center; width: 40px; height: 40px; top: 5px; right: 5px; padding: 0; border-radius: 8px; color: #64748b; transition: color .18s ease, background .18s ease; }
+.auth-page .password-field button:hover { color: var(--blue); background: #eff6ff; }
+.auth-page .password-field button svg { width: 20px; height: 20px; }
+.auth-field-hint { color: #64748b; font-size: .75rem; font-weight: 400; line-height: 1.5; }
+.auth-page .checkbox-row { gap: 8px; font-size: .8rem; line-height: 1.5; }
+.auth-page .checkbox-row input { flex-shrink: 0; margin: 0; }
+.auth-page .button-full { min-height: 50px; border-radius: 10px; font-size: .9rem; box-shadow: 0 5px 12px rgba(37, 99, 235, .16); }
+.auth-page .auth-switch { padding-top: 20px; margin: 2px 0 0 !important; border-top: 1px solid #edf0f5; font-size: .83rem; line-height: 1.6; }
+.auth-switch a:hover { text-decoration: underline; text-underline-offset: 3px; }
+.auth-footer { margin: 20px 0 0; text-align: center; color: #64748b; font-size: .75rem; }
+.auth-page a:focus-visible, .auth-page button:focus-visible { outline: 3px solid #93b4ff; outline-offset: 4px; }
+
+@media (max-width: 560px) {
+  .auth-page { min-height: calc(100svh - 66px); padding: 24px 16px; }
+  .auth-page .auth-card { padding: 28px 22px 24px; border-radius: 20px; }
+  .auth-card-header { margin-bottom: 24px; }
+}

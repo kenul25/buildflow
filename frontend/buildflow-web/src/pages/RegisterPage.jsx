@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth.js'
 import { apiErrorMessage } from '../services/api.js'
-import { AuthPage, Field } from './LoginPage.jsx'
+import { AuthPage, Field, PasswordField } from './LoginPage.jsx'
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const validPassword = (value) => value.length >= 8 && /[A-Z]/.test(value) && /[a-z]/.test(value) && /\d/.test(value) && /[^A-Za-z0-9]/.test(value)
@@ -34,14 +34,13 @@ export default function RegisterPage() {
     finally { setIsSubmitting(false) }
   }
 
-  return <AuthPage title="Create your account" subtitle="Public accounts start with secure Site Engineer access.">
+  return <AuthPage title="Create your account" subtitle="Start bringing your projects together.">
     <form className="auth-form" onSubmit={submit} noValidate>
       {serverError && <div className="form-alert" role="alert">{serverError}</div>}
-      <Field label="Full name" error={errors.fullName}><input name="fullName" value={form.fullName} onChange={update} autoComplete="name" /></Field>
-      <Field label="Email address" error={errors.email}><input name="email" type="email" value={form.email} onChange={update} autoComplete="email" /></Field>
-      <Field label="Password" error={errors.password}><input name="password" type="password" value={form.password} onChange={update} autoComplete="new-password" /></Field>
-      <Field label="Confirm password" error={errors.confirmPassword}><input name="confirmPassword" type="password" value={form.confirmPassword} onChange={update} autoComplete="new-password" /></Field>
-      <p className="account-note">Project Manager and officer roles are assigned by an administrator.</p>
+      <Field label="Full name" error={errors.fullName}><input name="fullName" value={form.fullName} onChange={update} autoComplete="name" placeholder="Enter your full name" required aria-invalid={errors.fullName ? true : undefined} /></Field>
+      <Field label="Email address" error={errors.email}><input name="email" type="email" value={form.email} onChange={update} autoComplete="email" placeholder="you@company.com" required aria-invalid={errors.email ? true : undefined} /></Field>
+      <PasswordField label="Password" name="password" value={form.password} onChange={update} autoComplete="new-password" placeholder="Create a strong password" error={errors.password} hint="Use 8+ characters with uppercase, lowercase, a number and a symbol." />
+      <PasswordField label="Confirm password" name="confirmPassword" value={form.confirmPassword} onChange={update} autoComplete="new-password" placeholder="Re-enter your password" error={errors.confirmPassword} />
       <button className="button button-primary button-full" disabled={isSubmitting}>{isSubmitting ? 'Creating account…' : 'Create account'}</button>
       <p className="auth-switch">Already have an account? <Link to="/login">Sign in</Link></p>
     </form>
