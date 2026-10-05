@@ -4,6 +4,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../services/scheduling_service.dart';
 import '../../services/project_service.dart';
 import '../home/operations_navigation.dart';
+import 'scheduling_action_sheet.dart';
 
 class SchedulingScreen extends StatefulWidget {
   const SchedulingScreen({required this.service, super.key});
@@ -23,6 +24,7 @@ class _SchedulingScreenState extends State<SchedulingScreen> {
   ];
   final Map<String, List<Map<String, dynamic>>> _data = {};
   bool _loading = true, _busy = false;
+  bool _openingForm = false;
   String? _error;
   int _tab = 0;
   @override
@@ -155,7 +157,7 @@ class _SchedulingScreenState extends State<SchedulingScreen> {
                       label: 'Scan',
                       tooltip: 'Scan equipment',
                       icon: Icons.qr_code_scanner_rounded,
-                      onTap: _busy || _loading ? null : _scan,
+                      onTap: _busy || _loading || _openingForm ? null : _scan,
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -164,7 +166,7 @@ class _SchedulingScreenState extends State<SchedulingScreen> {
                       label: 'Request',
                       tooltip: 'Request equipment',
                       icon: Icons.add_circle_outline_rounded,
-                      onTap: _busy || _loading
+                      onTap: _busy || _loading || _openingForm
                           ? null
                           : () => _form(false),
                     ),
@@ -175,7 +177,7 @@ class _SchedulingScreenState extends State<SchedulingScreen> {
                       label: 'Report',
                       tooltip: 'Report an issue',
                       icon: Icons.flag_outlined,
-                      onTap: _busy || _loading
+                      onTap: _busy || _loading || _openingForm
                           ? null
                           : () => _form(true),
                     ),
@@ -370,122 +372,47 @@ class _SchedulingScreenState extends State<SchedulingScreen> {
   }
 
   Future<void> _form(bool issue) async {
-    List<Map<String, dynamic>> activities;
+    if (_openingForm || _busy) return;
+    setState(() => _openingForm = true);
     try {
-      activities = await ProjectService(widget.service.api).list('activities');
+      final activities = await ProjectService(widget.service.api)
+          .list('activities');
+      if (!mounted) return;
+      final saved = await showModalBottomSheet<bool>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        isDismissible: false,
+        enableDrag: false,
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        builder: (_) => SchedulingActionSheet(
+          issue: issue,
+          service: widget.service,
+          activities: activities,
+          equipment: _data['equipment'] ?? [],
+        ),
+      );
+      if (saved == true && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              issue ? 'Issue reported.' : 'Equipment request saved.',
+            ),
+          ),
+        );
+        await _load();
+      }
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text(error.toString())));
       }
-      return;
+    } finally {
+      if (mounted) setState(() => _openingForm = false);
     }
-    if (!mounted) return;
-    final title = TextEditingController();
-    final notes = TextEditingController();
-    String? activityId, equipmentId;
-    final formKey = GlobalKey<FormState>();
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialog) => AlertDialog(
-          title: Text(
-            issue
-                ? 'Report delay / equipment issue'
-                : 'Draft equipment request',
-          ),
-          content: SingleChildScrollView(
-            child: Form(
-              key: formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextFormField(
-                    controller: title,
-                    decoration: const InputDecoration(labelText: 'Title'),
-                    validator: (value) =>
-                        value == null || value.trim().length < 2
-                        ? 'Enter a title'
-                        : null,
-                  ),
-                  DropdownButtonFormField<String>(
-                    decoration: const InputDecoration(labelText: 'Activity'),
-                    items: activities
-                        .map(
-                          (x) => DropdownMenuItem(
-                            value: x['id'] as String,
-                            child: Text(
-                              '${x['name']}',
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (value) => activityId = value,
-                    validator: (value) =>
-                        value == null ? 'Select an activity' : null,
-                    isExpanded: true,
-                  ),
-                  DropdownButtonFormField<String>(
-                    decoration: InputDecoration(
-                      labelText: issue ? 'Equipment (optional)' : 'Equipment',
-                    ),
-                    items: (_data['equipment'] ?? [])
-                        .map(
-                          (x) => DropdownMenuItem(
-                            value: x['id'] as String,
-                            child: Text(
-                              '${x['name']}',
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (value) => equipmentId = value,
-                    validator: (value) =>
-                        !issue && value == null ? 'Select equipment' : null,
-                    isExpanded: true,
-                  ),
-                  TextFormField(
-                    controller: notes,
-                    maxLines: 3,
-                    decoration: const InputDecoration(
-                      labelText: 'Description / expected impact',
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () {
-                if (!formKey.currentState!.validate()) return;
-                final body = {
-                  'name': title.text.trim(),
-                  'notes': notes.text.trim(),
-                  'activityId': activityId,
-                  'equipmentId': equipmentId,
-                };
-                Navigator.pop(dialogContext);
-                _perform(
-                  () => issue
-                      ? widget.service.report(body)
-                      : widget.service.requestEquipment(body),
-                );
-              },
-              child: const Text('Submit'),
-            ),
-          ],
-        ),
-      ),
-    );
-    title.dispose();
-    notes.dispose();
   }
 }
 
