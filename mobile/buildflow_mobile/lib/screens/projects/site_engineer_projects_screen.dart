@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 
 import '../../services/project_service.dart';
+import 'resource_picker.dart';
 
 class SiteEngineerProjectsScreen extends StatefulWidget {
   const SiteEngineerProjectsScreen({required this.service, super.key});
@@ -248,12 +248,6 @@ class _SiteProjectDetailScreenState extends State<SiteProjectDetailScreen> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         Text(
-                          projectName,
-                          softWrap: true,
-                          style: Theme.of(context).textTheme.headlineSmall,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
                           widget.project['description'] as String? ??
                               'Assigned construction project',
                           style: Theme.of(context).textTheme.bodyLarge,
@@ -361,12 +355,14 @@ class SiteActivityScreen extends StatefulWidget {
     required this.project,
     required this.siteId,
     required this.activity,
+    this.requestOnly = false,
     super.key,
   });
   final ProjectService service;
   final Map<String, dynamic> project;
   final String siteId;
   final Map<String, dynamic> activity;
+  final bool requestOnly;
   @override
   State<SiteActivityScreen> createState() => _SiteActivityScreenState();
 }
@@ -377,7 +373,9 @@ class _SiteActivityScreenState extends State<SiteActivityScreen> {
   final objective = TextEditingController();
   final resource = TextEditingController();
   final quantity = TextEditingController(text: '1');
-  final unit = TextEditingController(text: 'units');
+  final unit = TextEditingController();
+  final resourceCount = TextEditingController(text: '1');
+  Map<String, dynamic>? selectedResource;
   int progress = 0;
   String kind = 'Material';
   bool busy = false;
@@ -385,20 +383,39 @@ class _SiteActivityScreenState extends State<SiteActivityScreen> {
   String? workflowId;
   String? workflowStatus;
   final List<Map<String, dynamic>> resources = [];
+  List<Map<String, dynamic>> progressHistory = [];
+  List<Map<String, dynamic>> savedRequests = [];
+  bool historyLoading = true;
+  String? historyError;
+  final Map<String, Future<Map<String, dynamic>>> requestDetails = {};
 
   Map<String, dynamic> currentResource() {
     final count = double.tryParse(quantity.text);
-    if (resource.text.trim().length < 2 ||
+    if (selectedResource == null ||
+        resource.text.trim().length < 2 ||
         count == null ||
+        !count.isFinite ||
         count <= 0 ||
         unit.text.trim().isEmpty) {
-      throw Exception('Enter a valid resource name, quantity and unit.');
+      throw Exception('Select a resource and enter a valid quantity.');
+    }
+    final countValue = kind == 'Workforce' && unit.text == 'workers'
+        ? count
+        : double.tryParse(resourceCount.text);
+    if (kind != 'Material' &&
+        (countValue == null ||
+            !countValue.isFinite ||
+            countValue < 1 ||
+            countValue > 10000 ||
+            countValue != countValue.roundToDouble())) {
+      throw Exception('Enter a whole-number machine or worker count.');
     }
     return {
       'kind': kind,
       'name': resource.text.trim(),
       'quantity': count,
       'unit': unit.text.trim(),
+      if (kind != 'Material') 'resourceCount': countValue!.toInt(),
     };
   }
 
@@ -406,6 +423,36 @@ class _SiteActivityScreenState extends State<SiteActivityScreen> {
   void initState() {
     super.initState();
     progress = widget.activity['progressPercent'] as int? ?? 0;
+    loadHistory();
+  }
+
+  Future<void> loadHistory() async {
+    if (!mounted) return;
+    setState(() {
+      historyLoading = true;
+      historyError = null;
+    });
+    try {
+      final results = await Future.wait([
+        widget.service.progressHistory(widget.activity['id'] as String),
+        widget.service.requests(),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        progressHistory = results[0];
+        savedRequests = results[1]
+            .where((row) => row['activityId'] == widget.activity['id'])
+            .toList();
+        if (progressHistory.isNotEmpty) {
+          progress = (progressHistory.first['progressPercent'] as num).toInt();
+        }
+        requestDetails.clear();
+      });
+    } catch (error) {
+      if (mounted) setState(() => historyError = error.toString());
+    } finally {
+      if (mounted) setState(() => historyLoading = false);
+    }
   }
 
   @override
@@ -416,6 +463,7 @@ class _SiteActivityScreenState extends State<SiteActivityScreen> {
     resource.dispose();
     quantity.dispose();
     unit.dispose();
+    resourceCount.dispose();
     super.dispose();
   }
 
@@ -429,6 +477,7 @@ class _SiteActivityScreenState extends State<SiteActivityScreen> {
     } catch (error) {
       if (mounted) setState(() => message = error.toString());
     } finally {
+      await loadHistory();
       if (mounted) setState(() => busy = false);
     }
   }
@@ -454,6 +503,18 @@ class _SiteActivityScreenState extends State<SiteActivityScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                if (!widget.requestOnly) ...[
+                  if ((widget.activity['description'] as String?)?.isNotEmpty ??
+                      false)
+                    Text(widget.activity['description'] as String),
+                  Text(
+                    '$progress% complete',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                _history(),
+                const SizedBox(height: 24),
                 if (message != null) ...[
                   Card(
                     child: Padding(
@@ -463,104 +524,79 @@ class _SiteActivityScreenState extends State<SiteActivityScreen> {
                   ),
                   const SizedBox(height: 16),
                 ],
-                Text(
-                  'Progress update',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const SizedBox(height: 8),
-                Slider(
-                  value: progress.toDouble(),
-                  min: 0,
-                  max: 100,
-                  divisions: 100,
-                  label: '$progress%',
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 16,
+                if (!widget.requestOnly) ...[
+                  Text(
+                    'Progress update',
+                    style: Theme.of(context).textTheme.titleLarge,
                   ),
-                  onChanged: busy
-                      ? null
-                      : (value) => setState(() => progress = value.round()),
-                ),
-                Text('$progress% complete'),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: work,
-                  minLines: 2,
-                  maxLines: 4,
-                  decoration: const InputDecoration(
-                    labelText: 'Work completed today',
-                    alignLabelWithHint: true,
+                  const SizedBox(height: 8),
+                  Slider(
+                    value: progress.toDouble(),
+                    min: 0,
+                    max: 100,
+                    divisions: 100,
+                    label: '$progress%',
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 16,
+                    ),
+                    onChanged: busy
+                        ? null
+                        : (value) => setState(() => progress = value.round()),
                   ),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: blockers,
-                  minLines: 2,
-                  maxLines: 4,
-                  decoration: const InputDecoration(
-                    labelText: 'Issues or blockers',
-                    alignLabelWithHint: true,
+                  Text('$progress% complete'),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: work,
+                    minLines: 2,
+                    maxLines: 4,
+                    decoration: const InputDecoration(
+                      labelText: 'Work completed today',
+                      alignLabelWithHint: true,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 16),
-                FilledButton.icon(
-                  style: FilledButton.styleFrom(
-                    minimumSize: const Size.fromHeight(48),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: blockers,
+                    minLines: 2,
+                    maxLines: 4,
+                    decoration: const InputDecoration(
+                      labelText: 'Issues or blockers',
+                      alignLabelWithHint: true,
+                    ),
                   ),
-                  onPressed: busy
-                      ? null
-                      : () => act(() async {
-                          if (work.text.trim().length < 2) {
-                            throw Exception('Describe the work completed.');
-                          }
-                          await widget.service.updateProgress(
-                            widget.activity['id'] as String,
-                            progress,
-                            work.text.trim(),
-                            blockers.text.trim(),
-                          );
-                          if (mounted) {
-                            setState(() => message = 'Progress saved.');
-                          }
-                        }),
-                  icon: const Icon(Icons.save),
-                  label: const Text(
-                    'Save progress',
-                    textAlign: TextAlign.center,
+                  const SizedBox(height: 16),
+                  FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(48),
+                    ),
+                    onPressed: busy
+                        ? null
+                        : () => act(() async {
+                            if (work.text.trim().length < 2) {
+                              throw Exception('Describe the work completed.');
+                            }
+                            await widget.service.updateProgress(
+                              widget.activity['id'] as String,
+                              progress,
+                              work.text.trim(),
+                              blockers.text.trim(),
+                            );
+                            if (mounted) {
+                              setState(() => message = 'Progress saved.');
+                            }
+                          }),
+                    icon: const Icon(Icons.save),
+                    label: const Text(
+                      'Save progress',
+                      textAlign: TextAlign.center,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size.fromHeight(48),
-                  ),
-                  onPressed: busy
-                      ? null
-                      : () => act(() async {
-                          final photo = await ImagePicker().pickImage(
-                            source: ImageSource.camera,
-                            imageQuality: 75,
-                            maxWidth: 1600,
-                          );
-                          if (photo == null) return;
-                          await widget.service.uploadPhoto(
-                            widget.activity['id'] as String,
-                            photo.path,
-                          );
-                          if (mounted) {
-                            setState(() => message = 'Site photo uploaded.');
-                          }
-                        }),
-                  icon: const Icon(Icons.camera_alt_outlined),
-                  label: const Text(
-                    'Upload site photo',
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-                const SizedBox(height: 24),
-                const Divider(height: 1),
-                const SizedBox(height: 24),
+                  const SizedBox(height: 8),
+                  const SizedBox(height: 24),
+                  const Divider(height: 1),
+                  const SizedBox(height: 24),
+                ],
                 Text(
                   'Resource request',
                   style: Theme.of(context).textTheme.titleLarge,
@@ -589,26 +625,116 @@ class _SiteActivityScreenState extends State<SiteActivityScreen> {
                   onChanged: busy
                       ? null
                       : (value) {
-                          if (value != null) setState(() => kind = value);
+                          if (value != null) {
+                            setState(() {
+                              kind = value;
+                              selectedResource = null;
+                              resource.clear();
+                              unit.text = value == 'Material'
+                                  ? ''
+                                  : value == 'Equipment'
+                                  ? 'days'
+                                  : 'mandays';
+                              quantity.text = '1';
+                              resourceCount.text = '1';
+                            });
+                          }
                         },
                 ),
                 const SizedBox(height: 16),
                 TextField(
                   controller: resource,
-                  decoration: const InputDecoration(labelText: 'Resource name'),
+                  readOnly: true,
+                  onTap: busy
+                      ? null
+                      : () async {
+                          final selected = await pickResource(
+                            context,
+                            widget.service,
+                            kind,
+                          );
+                          if (!mounted || selected == null) return;
+                          setState(() {
+                            selectedResource = selected;
+                            resource.text = selected['name'] as String;
+                            if (kind == 'Material') {
+                              unit.text = selected['unit'] as String;
+                            }
+                          });
+                        },
+                  decoration: InputDecoration(
+                    labelText: kind == 'Workforce'
+                        ? 'Worker skill'
+                        : 'Resource name',
+                    suffixIcon: const Icon(Icons.search),
+                    helperText: 'Tap to search registered resources',
+                  ),
                 ),
+                if (kind != 'Material' && unit.text != 'workers') ...[
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: resourceCount,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      labelText: kind == 'Equipment'
+                          ? 'Number of machines'
+                          : 'Number of workers',
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 16),
                 LayoutBuilder(
                   builder: (context, constraints) {
                     final quantityField = TextField(
                       controller: quantity,
                       keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: 'Quantity'),
+                      decoration: InputDecoration(
+                        labelText: kind == 'Material' || unit.text == 'workers'
+                            ? 'Quantity'
+                            : 'Total usage / effort',
+                      ),
                     );
-                    final unitField = TextField(
-                      controller: unit,
-                      decoration: const InputDecoration(labelText: 'Unit'),
-                    );
+                    final Widget unitField = kind == 'Material'
+                        ? TextField(
+                            controller: unit,
+                            readOnly: true,
+                            decoration: const InputDecoration(
+                              labelText: 'Unit',
+                              suffixIcon: Icon(Icons.lock_outline),
+                              hintText: 'Select material first',
+                            ),
+                          )
+                        : DropdownButtonFormField<String>(
+                            key: ValueKey('usage-unit-$kind-${unit.text}'),
+                            initialValue: unit.text,
+                            isExpanded: true,
+                            decoration: const InputDecoration(
+                              labelText: 'Unit',
+                            ),
+                            items:
+                                (kind == 'Equipment'
+                                        ? ['shifts', 'days', 'hours', 'weeks']
+                                        : [
+                                            'mandays',
+                                            'workers',
+                                            'hours',
+                                            'shifts',
+                                          ])
+                                    .map(
+                                      (value) => DropdownMenuItem(
+                                        value: value,
+                                        child: Text(value),
+                                      ),
+                                    )
+                                    .toList(),
+                            onChanged: busy
+                                ? null
+                                : (value) {
+                                    if (value != null) {
+                                      setState(() => unit.text = value);
+                                    }
+                                  },
+                          );
                     if (constraints.maxWidth < 360) {
                       return Column(
                         children: [
@@ -627,6 +753,15 @@ class _SiteActivityScreenState extends State<SiteActivityScreen> {
                     );
                   },
                 ),
+                if (kind != 'Material')
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      kind == 'Equipment'
+                          ? 'Total usage across all machines. Day/shift = 8 hours; week = 40 hours.'
+                          : 'Total effort across all workers. Manday/shift = 8 hours. Workers is headcount only.',
+                    ),
+                  ),
                 const SizedBox(height: 8),
                 TextButton.icon(
                   onPressed: busy
@@ -636,7 +771,10 @@ class _SiteActivityScreenState extends State<SiteActivityScreen> {
                             setState(() {
                               resources.add(currentResource());
                               resource.clear();
+                              selectedResource = null;
+                              if (kind == 'Material') unit.clear();
                               quantity.text = '1';
+                              resourceCount.text = '1';
                               message = null;
                             });
                           } catch (error) {
@@ -666,6 +804,10 @@ class _SiteActivityScreenState extends State<SiteActivityScreen> {
                                 entry.value['kind'] as String,
                                 style: Theme.of(context).textTheme.bodySmall,
                               ),
+                              if (entry.value['resourceCount'] != null)
+                                Text(
+                                  'Resource count: ${entry.value['resourceCount']}',
+                                ),
                             ],
                           ),
                         ),
@@ -712,8 +854,9 @@ class _SiteActivityScreenState extends State<SiteActivityScreen> {
                             setState(() {
                               workflowId = workflow['id'] as String;
                               workflowStatus = workflow['status'] as String;
-                              message =
-                                  'Request submitted and planning started.';
+                              message = workflowStatus == 'Failed'
+                                  ? 'Request saved, but planning failed. Check the planning service and resource availability.'
+                                  : 'Request submitted and planning started.';
                             });
                           }
                         }),
@@ -777,4 +920,137 @@ class _SiteActivityScreenState extends State<SiteActivityScreen> {
       ),
     ),
   );
+
+  Widget _history() => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Row(
+        children: [
+          Expanded(
+            child: Text(
+              'Saved activity details',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+          ),
+          IconButton(
+            tooltip: 'Refresh saved details',
+            onPressed: historyLoading || busy ? null : loadHistory,
+            icon: const Icon(Icons.refresh),
+          ),
+        ],
+      ),
+      if (historyLoading) const LinearProgressIndicator(),
+      if (historyError != null) ...[
+        Text('Could not load saved details: $historyError'),
+        TextButton(onPressed: loadHistory, child: const Text('Retry history')),
+      ],
+      if (!historyLoading && historyError == null) ...[
+        ExpansionTile(
+          title: Text('Progress history (${progressHistory.length})'),
+          children: [
+            if (progressHistory.isEmpty)
+              const ListTile(title: Text('No progress updates yet.')),
+            ...progressHistory.map(
+              (row) => ListTile(
+                title: Text(
+                  '${row['progressPercent']}% · ${row['workCompleted']}',
+                ),
+                subtitle: Text(
+                  [
+                    _date(row['createdAt']),
+                    if ((row['blockers'] as String?)?.isNotEmpty ?? false)
+                      'Blockers: ${row['blockers']}',
+                  ].join('\n'),
+                ),
+              ),
+            ),
+          ],
+        ),
+        Text(
+          'Resource requests (${savedRequests.length})',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        if (savedRequests.isEmpty)
+          const Padding(
+            padding: EdgeInsets.all(12),
+            child: Text('No resource requests yet.'),
+          ),
+        ...savedRequests.map(
+          (row) => ExpansionTile(
+            key: ValueKey('saved-request-${row['id']}'),
+            title: Text(row['objective'] as String),
+            subtitle: Text(
+              '${_date(row['createdAt'])} · ${row['workflowStatus'] ?? 'Not started'}',
+            ),
+            onExpansionChanged: (expanded) {
+              if (expanded && !requestDetails.containsKey(row['id'])) {
+                _loadRequestDetails(row['id'] as String);
+              }
+            },
+            children: [
+              if (requestDetails.containsKey(row['id']))
+                FutureBuilder<Map<String, dynamic>>(
+                  future: requestDetails[row['id']],
+                  builder: (context, snapshot) {
+                    if (snapshot.hasError) {
+                      return ListTile(
+                        title: Text(
+                          'Could not load request: ${snapshot.error}',
+                        ),
+                        trailing: IconButton(
+                          tooltip: 'Retry request details',
+                          icon: const Icon(Icons.refresh),
+                          onPressed: () =>
+                              _loadRequestDetails(row['id'] as String),
+                        ),
+                      );
+                    }
+                    if (!snapshot.hasData) {
+                      return const LinearProgressIndicator();
+                    }
+                    final detail = snapshot.data!;
+                    return Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text('Status: ${detail['status'] ?? 'Draft'}'),
+                          if (detail['requiredBy'] != null)
+                            Text('Required by: ${_date(detail['requiredBy'])}'),
+                          if (detail['budgetLimit'] != null)
+                            Text('Budget: ${detail['budgetLimit']}'),
+                          if ((detail['notes'] as String?)?.isNotEmpty ?? false)
+                            Text('Notes: ${detail['notes']}'),
+                          ...((detail['items'] as List?) ?? []).map(
+                            (item) => Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: Text(
+                                '${item['kind']}: ${item['name']} · ${item['quantity']} ${item['unit']}${item['resourceCount'] == null ? '' : ' · Count: ${item['resourceCount']}'}',
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+            ],
+          ),
+        ),
+      ],
+    ],
+  );
+
+  String _date(dynamic value) {
+    final date = DateTime.tryParse(value?.toString() ?? '')?.toLocal();
+    if (date == null) return '';
+    return '${date.day}/${date.month}/${date.year}';
+  }
+
+  void _loadRequestDetails(String id) {
+    final pending = widget.service.requestDetails(id);
+    setState(() {
+      requestDetails[id] = pending;
+    });
+  }
 }

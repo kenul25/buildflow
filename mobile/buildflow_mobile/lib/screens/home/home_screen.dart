@@ -8,6 +8,8 @@ import '../../services/inventory_service.dart';
 import '../../services/procurement_service.dart';
 import '../../services/scheduling_service.dart';
 import '../scheduling/scheduling_screen.dart';
+import 'operations_navigation.dart';
+import '../projects/quick_request_screen.dart';
 import '../projects/site_engineer_projects_screen.dart';
 import '../projects/site_requests_screen.dart';
 import '../inventory/inventory_screen.dart';
@@ -34,24 +36,16 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _index = 0;
-  static const _labels = [
-    'Home',
-    'Projects',
-    'Materials',
-    'Requests',
-    'Procurement',
-    'Scheduling',
-    'Profile',
-  ];
-  static const _icons = [
-    Icons.home_outlined,
-    Icons.apartment_outlined,
-    Icons.inventory_2_outlined,
-    Icons.add_box_outlined,
-    Icons.shopping_cart_outlined,
-    Icons.event_available_outlined,
-    Icons.person_outline,
-  ];
+  static const _labels = ['Home', 'Projects', 'Schedule', 'More'];
+
+  void _open(String title, Widget page) => Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      builder: (_) => Scaffold(
+        appBar: AppBar(title: Text(title)),
+        body: SafeArea(child: page),
+      ),
+    ),
+  );
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -60,27 +54,19 @@ class _HomeScreenState extends State<HomeScreen> {
         _labels[_index],
         style: const TextStyle(fontWeight: FontWeight.w800),
       ),
-      actions: _index == 0
-          ? [
-              IconButton(
-                onPressed: () => setState(() => _index = 2),
-                icon: const Icon(Icons.notifications_none),
-                tooltip: 'Notifications',
-              ),
-            ]
-          : null,
     ),
     body: SafeArea(child: _page()),
-    bottomNavigationBar: NavigationBar(
-      selectedIndex: _index,
-      onDestinationSelected: (value) => setState(() => _index = value),
-      destinations: List.generate(
-        _labels.length,
-        (index) => NavigationDestination(
-          icon: Icon(_icons[index]),
-          label: _labels[index],
+    floatingActionButton: RequestActionButton(
+      onPressed: () => Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => QuickRequestScreen(service: widget.projectService),
         ),
       ),
+    ),
+    floatingActionButtonLocation: const RequestActionLocation(),
+    bottomNavigationBar: OperationsNavigation(
+      selectedIndex: _index,
+      onSelect: (index) => setState(() => _index = index),
     ),
   );
 
@@ -90,23 +76,80 @@ class _HomeScreenState extends State<HomeScreen> {
       api: widget.projectService.api,
     ),
     1 => SiteEngineerProjectsScreen(service: widget.projectService),
-    2 => InventoryScreen(service: widget.inventoryService),
-    3 => SiteRequestsScreen(service: widget.projectService),
-    4 => ProcurementScreen(
-      service: widget.procurementService,
-      canApprove: widget.authProvider.user!.roles.any(
-        (role) => ['Administrator', 'ProjectManager'].contains(role),
-      ),
-    ),
-    5 => SchedulingScreen(
+    2 => SchedulingScreen(
       service: SchedulingService(widget.projectService.api),
     ),
-    6 => _Profile(
-      authProvider: widget.authProvider,
-      themeProvider: widget.themeProvider,
+    _ => ListView(
+      padding: const EdgeInsets.all(20),
+      children: [
+        Text(
+          'More operations',
+          style: Theme.of(context).textTheme.headlineSmall,
+        ),
+        const SizedBox(height: 16),
+        _more(
+          'Materials',
+          'Stock and material availability',
+          Icons.inventory_2_outlined,
+          () => _open(
+            'Materials',
+            InventoryScreen(service: widget.inventoryService),
+          ),
+        ),
+        _more(
+          'Requests',
+          'Track requests and AI planning',
+          Icons.assignment_outlined,
+          () => _open(
+            'Requests',
+            SiteRequestsScreen(service: widget.projectService),
+          ),
+        ),
+        _more(
+          'Procurement',
+          'Deliveries and receipt confirmation',
+          Icons.local_shipping_outlined,
+          () => _open(
+            'Procurement',
+            ProcurementScreen(
+              service: widget.procurementService,
+              canApprove: widget.authProvider.user!.roles.any(
+                (role) => ['Administrator', 'ProjectManager'].contains(role),
+              ),
+            ),
+          ),
+        ),
+        _more(
+          'Profile',
+          'Account and appearance',
+          Icons.person_outline,
+          () => _open(
+            'Profile',
+            _Profile(
+              authProvider: widget.authProvider,
+              themeProvider: widget.themeProvider,
+            ),
+          ),
+        ),
+      ],
     ),
-    _ => _EmptyModule(title: _labels[_index], icon: _icons[_index]),
   };
+
+  Widget _more(
+    String title,
+    String subtitle,
+    IconData icon,
+    VoidCallback onTap,
+  ) => Card(
+    child: ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      leading: Icon(icon, color: OperationsNavigation.blue),
+      title: Text(title),
+      subtitle: Text(subtitle),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: onTap,
+    ),
+  );
 }
 
 class _Overview extends StatefulWidget {
@@ -182,7 +225,7 @@ class _OverviewState extends State<_Overview> {
               leading: Icon(Icons.construction),
               title: Text('Site operations'),
               subtitle: Text(
-                'Use Projects for resource requests and progress, Procurement for receipts, and Scheduling for assignments and equipment scans.',
+                'Use + to create a request, Projects for progress, Schedule for assignments, and More for materials and deliveries.',
               ),
             ),
           ),
@@ -216,38 +259,6 @@ class _SummaryCard extends StatelessWidget {
                 ?.copyWith(fontWeight: FontWeight.w800),
           ),
           Text(label, style: Theme.of(context).textTheme.bodySmall),
-        ],
-      ),
-    ),
-  );
-}
-
-class _EmptyModule extends StatelessWidget {
-  const _EmptyModule({required this.title, required this.icon});
-  final String title;
-  final IconData icon;
-  @override
-  Widget build(BuildContext context) => Center(
-    child: Padding(
-      padding: const EdgeInsets.all(32),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 54, color: Theme.of(context).colorScheme.primary),
-          const SizedBox(height: 14),
-          Text(
-            '$title module',
-            style: Theme.of(context).textTheme.titleLarge
-                ?.copyWith(fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'This authenticated area is reserved for the next project milestone.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          ),
         ],
       ),
     ),

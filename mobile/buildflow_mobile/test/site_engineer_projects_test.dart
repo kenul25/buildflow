@@ -17,6 +17,10 @@ class LayoutService extends Fake implements ProjectService {
   final String projectName;
 
   @override
+  Future<List<Map<String, dynamic>>> progressHistory(String activityId) async =>
+      [];
+
+  @override
   Future<List<Map<String, dynamic>>> list(
     String kind, {
     String? parentId,
@@ -86,13 +90,8 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text(title), findsNWidgets(2));
-    expect(
-      tester
-          .widgetList<Text>(find.text(title))
-          .any((text) => text.maxLines == null),
-      isTrue,
-    );
+    expect(find.text(title), findsOneWidget);
+    expect(tester.widget<Text>(find.text(title)).maxLines, 2);
     expect(tester.takeException(), isNull);
   });
 

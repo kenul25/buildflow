@@ -4,6 +4,36 @@ class ProjectService {
   ProjectService(this.api);
   final ApiService api;
 
+  Future<List<Map<String, dynamic>>> resourceOptions(String kind) async {
+    final path = kind == 'Material'
+        ? '/inventory/materials/page'
+        : kind == 'Equipment'
+        ? '/scheduling/equipment'
+        : '/scheduling/skills';
+    final options = <Map<String, dynamic>>[];
+    for (var page = 1; ; page++) {
+      final result = await api.request(
+        'GET',
+        '$path?page=$page&pageSize=100',
+      ) as Map<String, dynamic>;
+      options.addAll((result['items'] as List).cast<Map<String, dynamic>>());
+      if (options.length >= (result['total'] as num) ||
+          (result['items'] as List).isEmpty) {
+        break;
+      }
+    }
+    final unique = <String, Map<String, dynamic>>{};
+    for (final option in options) {
+      if (kind == 'Equipment' && option['status'] != 'Operational') continue;
+      unique.putIfAbsent(
+        '${option['name']}|${kind == 'Material' ? option['unit'] : ''}',
+        () => option,
+      );
+    }
+    return unique.values.toList()
+      ..sort((a, b) => (a['name'] as String).compareTo(b['name'] as String));
+  }
+
   Future<List<Map<String, dynamic>>> list(
     String kind, {
     String? parentId,
@@ -28,6 +58,16 @@ class ProjectService {
   Future<List<Map<String, dynamic>>> requests() async =>
       (await api.request('GET', '/construction/resource-requests') as List)
           .cast<Map<String, dynamic>>();
+
+  Future<List<Map<String, dynamic>>> progressHistory(String activityId) async =>
+      (await api.request(
+        'GET',
+        '/construction/activities/$activityId/progress',
+      ) as List).cast<Map<String, dynamic>>();
+
+  Future<Map<String, dynamic>> requestDetails(String requestId) async =>
+      await api.request('GET', '/construction/resource-requests/$requestId')
+          as Map<String, dynamic>;
 
   Future<Map<String, dynamic>> startPlanning(String requestId) async {
     final workflow = await api.request(
