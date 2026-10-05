@@ -6,6 +6,8 @@ ThemeData buildDarkTheme() => ThemeData(
     seedColor: const Color(0xFF60A5FA),
     brightness: Brightness.dark,
     surface: const Color(0xFF111827),
+    primary: const Color(0xFF60A5FA),
+    onPrimary: const Color(0xFF0B1220),
   ),
   scaffoldBackgroundColor: const Color(0xFF0B1220),
   inputDecorationTheme: const InputDecorationTheme(

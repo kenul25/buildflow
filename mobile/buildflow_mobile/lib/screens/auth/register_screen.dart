@@ -18,6 +18,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _password = TextEditingController();
   final _confirm = TextEditingController();
   bool _submitting = false;
+  bool _showPassword = false;
+  bool _showConfirmPassword = false;
 
   @override
   void dispose() {
@@ -56,7 +58,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) => AuthShell(
     title: 'Create your account',
-    subtitle: 'New accounts receive secure Site Engineer access.',
+    subtitle: 'Start bringing your projects together.',
     child: Form(
       key: _formKey,
       child: Column(
@@ -76,8 +78,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
           TextFormField(
             controller: _name,
             textCapitalization: TextCapitalization.words,
+            textInputAction: TextInputAction.next,
+            autofillHints: const [AutofillHints.name],
             decoration: const InputDecoration(
               labelText: 'Full name',
+              hintText: 'Enter your full name',
               prefixIcon: Icon(Icons.person_outline),
             ),
             validator: (value) => value != null && value.trim().length >= 2
@@ -88,8 +93,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
           TextFormField(
             controller: _email,
             keyboardType: TextInputType.emailAddress,
+            textInputAction: TextInputAction.next,
+            autofillHints: const [AutofillHints.email],
             decoration: const InputDecoration(
               labelText: 'Email address',
+              hintText: 'you@company.com',
               prefixIcon: Icon(Icons.mail_outline),
             ),
             validator: (value) =>
@@ -101,10 +109,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
           const SizedBox(height: 14),
           TextFormField(
             controller: _password,
-            obscureText: true,
-            decoration: const InputDecoration(
+            obscureText: !_showPassword,
+            textInputAction: TextInputAction.next,
+            autofillHints: const [AutofillHints.newPassword],
+            decoration: InputDecoration(
               labelText: 'Password',
-              prefixIcon: Icon(Icons.lock_outline),
+              hintText: 'Create a strong password',
+              helperText: '8+ characters with uppercase, lowercase, a number and a symbol.',
+              helperMaxLines: 3,
+              prefixIcon: const Icon(Icons.lock_outline),
+              suffixIcon: IconButton(
+                tooltip: _showPassword ? 'Hide password' : 'Show password',
+                onPressed: () => setState(() => _showPassword = !_showPassword),
+                icon: Icon(
+                  _showPassword
+                      ? Icons.visibility_off_outlined
+                      : Icons.visibility_outlined,
+                ),
+              ),
             ),
             validator: (value) =>
                 value != null && _validPassword(value) ? null : 'Use 8+ characters with uppercase, lowercase, number and symbol.',
@@ -112,23 +134,32 @@ class _RegisterScreenState extends State<RegisterScreen> {
           const SizedBox(height: 14),
           TextFormField(
             controller: _confirm,
-            obscureText: true,
-            decoration: const InputDecoration(
+            obscureText: !_showConfirmPassword,
+            textInputAction: TextInputAction.done,
+            onFieldSubmitted: (_) {
+              if (!_submitting) _submit();
+            },
+            autofillHints: const [AutofillHints.newPassword],
+            decoration: InputDecoration(
               labelText: 'Confirm password',
-              prefixIcon: Icon(Icons.lock_outline),
+              hintText: 'Re-enter your password',
+              prefixIcon: const Icon(Icons.lock_outline),
+              suffixIcon: IconButton(
+                tooltip: _showConfirmPassword
+                    ? 'Hide confirm password'
+                    : 'Show confirm password',
+                onPressed: () => setState(
+                  () => _showConfirmPassword = !_showConfirmPassword,
+                ),
+                icon: Icon(
+                  _showConfirmPassword
+                      ? Icons.visibility_off_outlined
+                      : Icons.visibility_outlined,
+                ),
+              ),
             ),
             validator: (value) =>
                 value == _password.text ? null : 'Passwords do not match.',
-          ),
-          const SizedBox(height: 14),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(14),
-              child: Text(
-                'Project Manager and officer roles are assigned by an administrator.',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ),
           ),
           const SizedBox(height: 18),
           FilledButton(

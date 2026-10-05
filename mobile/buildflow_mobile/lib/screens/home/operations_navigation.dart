@@ -11,12 +11,14 @@ class OperationsNavigation extends StatelessWidget {
   final int selectedIndex;
   final ValueChanged<int> onSelect;
 
-  static const blue = Color(0xFF1E6BFF);
+  static const blue = Color(0xFF2563EB);
   static const slate = Color(0xFF64748B);
 
   @override
   Widget build(BuildContext context) => BottomAppBar(
-    color: Colors.white,
+    color: Theme.of(context).brightness == Brightness.dark
+        ? Theme.of(context).colorScheme.surface
+        : Colors.white,
     surfaceTintColor: Colors.transparent,
     elevation: 8,
     shadowColor: const Color(0x260F172A),
