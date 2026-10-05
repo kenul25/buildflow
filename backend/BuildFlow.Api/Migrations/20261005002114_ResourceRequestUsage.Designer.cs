@@ -3,17 +3,20 @@ using System;
 using BuildFlow.Api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace BuildFlow.Api.Migrations
+namespace BuildFlow.Api.Migrations.BuildFlowDb
 {
     [DbContext(typeof(BuildFlowDbContext))]
-    partial class BuildFlowDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261005002114_ResourceRequestUsage")]
+    partial class ResourceRequestUsage
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

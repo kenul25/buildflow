@@ -69,6 +69,7 @@ public sealed class ProgressWriteDto
 public sealed record ProgressDto(Guid Id, Guid ActivityId, int ProgressPercent, string WorkCompleted, string? Blockers, Guid SubmittedById, DateTimeOffset CreatedAt);
 public sealed class ResourceItemWriteDto
 {
+    [Range(1, 10000)] public int? ResourceCount { get; set; }
     [Required, RegularExpression("Material|Equipment|Workforce")] public string Kind { get; set; } = "Material";
     [Required, StringLength(160, MinimumLength = 2)] public string Name { get; set; } = "";
     [Range(typeof(decimal), "0.001", "999999999")] public decimal Quantity { get; set; }
@@ -85,7 +86,7 @@ public sealed class ResourceRequestWriteDto
     [StringLength(2000)] public string? Notes { get; set; }
     [MinLength(1)] public List<ResourceItemWriteDto> Items { get; set; } = [];
 }
-public sealed record ResourceItemDto(string Kind, string Name, decimal Quantity, string Unit);
+public sealed record ResourceItemDto(string Kind, string Name, decimal Quantity, string Unit, int? ResourceCount = null);
 public sealed record ResourceRequestDto(Guid Id, Guid ProjectId, Guid SiteId, Guid ActivityId, string Objective, DateOnly? RequiredBy, decimal? BudgetLimit, string? Notes, IReadOnlyList<ResourceItemDto> Items, Guid SubmittedById, DateTimeOffset CreatedAt);
 public sealed record ResourceRequestSummaryDto(Guid Id, Guid ProjectId, Guid ActivityId, string Objective, DateTimeOffset CreatedAt, Guid? WorkflowId, string? WorkflowStatus);
 public sealed record WorkflowDto(Guid Id, Guid ResourceRequestId, string Status, JsonElement? Plan, string? Error, DateTimeOffset CreatedAt, DateTimeOffset? CompletedAt);

@@ -109,10 +109,10 @@ public sealed class ConstructionOperationsService(BuildFlowDbContext db, IPlanni
         if (dto.Items.Count == 0 || dto.Items.Count > 50) throw new ApiException(400, "invalid_items", "Provide between 1 and 50 resource items.");
         if (dto.Items.Any(i => i.Kind is not ("Material" or "Equipment" or "Workforce") || string.IsNullOrWhiteSpace(i.Name) || i.Name.Length > 160 || i.Quantity <= 0 || i.Quantity > 999999999 || string.IsNullOrWhiteSpace(i.Unit) || i.Unit.Length > 32))
             throw new ApiException(400, "invalid_items", "Each resource needs a valid type, name, quantity and unit.");
-        if (dto.Items.Any(x => x.Kind != "Material" && decimal.Truncate(x.Quantity) != x.Quantity)) throw new ApiException(400, "invalid_items", "Workforce and equipment quantities must be whole numbers.");
+        ResourceUsage.Validate(dto.Items);
         if (dto.RequiredBy < DateOnly.FromDateTime(DateTime.UtcNow)) throw new ApiException(400, "invalid_date", "Required date cannot be in the past.");
         var request = new ResourceRequest { Id = Guid.NewGuid(), ProjectId = dto.ProjectId, SiteId = dto.SiteId, ActivityId = dto.ActivityId, Objective = dto.Objective.Trim(), RequiredBy = dto.RequiredBy, BudgetLimit = dto.BudgetLimit, Notes = dto.Notes?.Trim(), SubmittedById = actorId,
-            Items = dto.Items.Select(i => new ResourceRequestItem { Id = Guid.NewGuid(), Kind = i.Kind, Name = i.Name.Trim(), Quantity = i.Quantity, Unit = i.Unit.Trim() }).ToList() };
+            Items = dto.Items.Select(i => new ResourceRequestItem { Id = Guid.NewGuid(), Kind = i.Kind, Name = i.Name.Trim(), Quantity = i.Quantity, Unit = i.Unit.Trim(), ResourceCount = i.ResourceCount }).ToList() };
         db.ResourceRequests.Add(request);
         await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
@@ -167,7 +167,7 @@ public sealed class ConstructionOperationsService(BuildFlowDbContext db, IPlanni
             }).ToListAsync(ct);
             var result = await planner.PlanAsync(new { workflowId = workflow.Id, requestId = request.Id, request.ProjectId, request.SiteId, request.ActivityId, request.Objective, request.RequiredBy, request.BudgetLimit,
                 projectName = request.Project.Name, siteName = request.Site.Name, siteAddress = request.Site.Address, activityName = request.Activity.Name, activityDueDate = request.Activity.DueDate,
-                items = request.Items.Select(i => new { i.Kind, i.Name, i.Quantity, i.Unit }), inventorySnapshot }, ct);
+                items = request.Items.Select(i => new { i.Kind, i.Name, i.Quantity, i.Unit, i.ResourceCount }), inventorySnapshot }, ct);
             if (!result.TryGetProperty("schemaVersion", out var version) || version.GetString() != "1.0" ||
                 !result.TryGetProperty("workflowId", out var workflowId) || workflowId.GetString() != workflow.Id.ToString() ||
                 !result.TryGetProperty("status", out var status) || status.GetString() != "AwaitingAgents" ||
@@ -287,7 +287,7 @@ public sealed class ConstructionOperationsService(BuildFlowDbContext db, IPlanni
         return (await File.ReadAllBytesAsync(Path.Combine(environment.ContentRootPath, "uploads", "site-photos", photo.StorageName), ct), photo.ContentType);
     }
 
-    private static ResourceRequestDto Map(ResourceRequest r) => new(r.Id,r.ProjectId,r.SiteId,r.ActivityId,r.Objective,r.RequiredBy,r.BudgetLimit,r.Notes,r.Items.Select(i => new ResourceItemDto(i.Kind,i.Name,i.Quantity,i.Unit)).ToList(),r.SubmittedById,r.CreatedAt);
+    private static ResourceRequestDto Map(ResourceRequest r) => new(r.Id,r.ProjectId,r.SiteId,r.ActivityId,r.Objective,r.RequiredBy,r.BudgetLimit,r.Notes,r.Items.Select(i => new ResourceItemDto(i.Kind,i.Name,i.Quantity,i.Unit,i.ResourceCount)).ToList(),r.SubmittedById,r.CreatedAt);
 
     private static JsonArray ReadExecutionHistory(string? previousPlanJson, string? previousError)
     {

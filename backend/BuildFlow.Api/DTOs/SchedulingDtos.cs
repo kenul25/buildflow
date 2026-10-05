@@ -26,5 +26,5 @@ public sealed class SchedulingWriteDto
 public sealed record SchedulingQuery(string? Search = null, string? Status = null, Guid? ParentId = null,
     string Sort = "name", bool Desc = false, int Page = 1, int PageSize = 20, bool IncludeArchived = false);
 public sealed record StatusWriteDto([Required, StringLength(32)] string Status, [StringLength(2000)] string? Notes = null);
-public sealed record ApprovalWriteDto([Required] string Decision, [Required, StringLength(2000)] string Reason);
+public sealed record ApprovalWriteDto([Required] string Decision, [Required, StringLength(2000)] string Reason, DateTimeOffset? ScheduleStart = null);
 public sealed record AvailabilityQuery(DateTimeOffset StartTime, DateTimeOffset EndTime, Guid? SkillId = null);

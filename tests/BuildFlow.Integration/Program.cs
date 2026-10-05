@@ -86,8 +86,37 @@ try {
             var tokens = new TokenService(Options.Create(jwt), TimeProvider.System);
             http.DefaultRequestHeaders.Authorization = new("Bearer", tokens.CreateAccessToken(testUser, ["SiteEngineer"]).Token);
             Check((await http.GetAsync("purchase-requests")).IsSuccessStatusCode, "Mobile purchase-request route accepts assigned site users");
+            Check((await http.GetAsync("scheduling/skills?pageSize=100")).IsSuccessStatusCode && (await http.GetAsync("scheduling/equipment?pageSize=100")).IsSuccessStatusCode, "Site users can search workforce and equipment catalogs");
+            var usageCreate = await http.PostAsJsonAsync("construction/resource-requests", new {
+                projectId = project.Id, siteId = site.Id, activityId = activity.Id, objective = "Equipment usage verification",
+                items = new[] { new { kind = "Equipment", name = "Crane", quantity = 1.5m, unit = "hours", resourceCount = 1 } }
+            });
+            Check(usageCreate.StatusCode == HttpStatusCode.Created, "Resource requests accept fractional effort with explicit machine count");
+            var usageId = (await usageCreate.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+            var usageRead = await (await http.GetAsync($"construction/resource-requests/{usageId}")).Content.ReadFromJsonAsync<JsonElement>();
+            Check(usageRead.GetProperty("items")[0].GetProperty("resourceCount").GetInt32() == 1 && usageRead.GetProperty("items")[0].GetProperty("quantity").GetDecimal() == 1.5m, "Saved request preserves resource count and effort independently");
+            Check((await http.PostAsJsonAsync("construction/resource-requests", new {
+                projectId = project.Id, siteId = site.Id, activityId = activity.Id, objective = "Invalid equipment unit verification",
+                items = new[] { new { kind = "Equipment", name = "Crane", quantity = 1m, unit = "bags", resourceCount = 1 } }
+            })).StatusCode == HttpStatusCode.BadRequest, "Equipment usage rejects material units");
             Check((await http.PostAsJsonAsync("scheduling/workers", new { name = "Forbidden worker" })).StatusCode == HttpStatusCode.Forbidden, "Site users cannot create workers through HTTP");
             http.DefaultRequestHeaders.Authorization = new("Bearer", tokens.CreateAccessToken(testUser, ["ProjectManager"]).Token);
+            var projectCreate = await http.PostAsJsonAsync("projects", new { name = "Delete verification project", code = "DELETE-TEST", status = "Planned" });
+            Check(projectCreate.StatusCode == HttpStatusCode.Created, "Disposable project created for Delete verification");
+            var deleteProjectId = (await projectCreate.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+            var siteCreate = await http.PostAsJsonAsync("sites", new { name = "Delete verification site", parentId = deleteProjectId, address = "Disposable site" });
+            Check(siteCreate.StatusCode == HttpStatusCode.Created, "Disposable child site created for deletion guard");
+            var deleteSiteId = (await siteCreate.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+            Check((await http.DeleteAsync($"projects/{deleteProjectId}")).StatusCode == HttpStatusCode.Conflict, "Project Delete rejects active child sites");
+            Check((await http.DeleteAsync($"sites/{deleteSiteId}")).StatusCode == HttpStatusCode.NoContent, "Site Delete removes an eligible site");
+            http.DefaultRequestHeaders.Authorization = new("Bearer", tokens.CreateAccessToken(testUser, ["SiteEngineer"]).Token);
+            Check((await http.DeleteAsync($"projects/{deleteProjectId}")).StatusCode == HttpStatusCode.Forbidden, "Project Delete rejects site-user access");
+            http.DefaultRequestHeaders.Authorization = new("Bearer", tokens.CreateAccessToken(testUser, ["ProjectManager"]).Token);
+            Check((await http.DeleteAsync($"projects/{deleteProjectId}")).StatusCode == HttpStatusCode.NoContent, "Project Delete succeeds after removing active children");
+            var activeProjects = await (await http.GetAsync("projects?pageSize=100")).Content.ReadFromJsonAsync<JsonElement>();
+            Check(!activeProjects.GetProperty("items").EnumerateArray().Any(x => x.GetProperty("id").GetGuid() == deleteProjectId), "Deleted project disappears from active lists");
+            var deletedProject = await db.Projects.AsNoTracking().SingleAsync(x => x.Id == deleteProjectId);
+            Check(deletedProject.IsArchived && deletedProject.ArchivedAt != null && deletedProject.UpdatedById == actor, "Project Delete retains audited history");
             var created = await http.PostAsJsonAsync("scheduling/workers", new { name = "HTTP worker" });
             Check(created.StatusCode == HttpStatusCode.Created, "Member 04 CRUD routes create records through HTTP");
             var httpWorker = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
@@ -194,8 +223,22 @@ try {
     var validProposal = storedWorkflow.PlanJson; storedWorkflow.PlanJson = "{\"tasks\":[]}";
     await Reject(() => executor.ValidateAsync(storedWorkflow, default), "Malformed agent proposals fail backend schema validation");
     storedWorkflow.PlanJson = validProposal;
-    workflow = await executor.DecideAsync(workflow.Id, new("Approved", "Reviewed resources and dates"), actor, default);
+    var expiredPlan = JsonNode.Parse(validProposal!)!;
+    var expiredSchedule = expiredPlan["tasks"]!.AsArray().Single(x => x!["agent"]!.GetValue<string>() == "SchedulingValidationAgent")!["output"]!;
+    var expiredStart = DateTimeOffset.UtcNow.AddHours(-2);
+    expiredSchedule["startTime"] = expiredStart.ToString("O");
+    expiredSchedule["endTime"] = expiredStart.AddHours(1).ToString("O");
+    storedWorkflow.PlanJson = expiredPlan.ToJsonString(); await db.SaveChangesAsync();
+    await Reject(() => executor.DecideAsync(workflow.Id, new("Approved", "Expired plan"), actor, default), "Expired start cannot be approved without a new schedule time");
+    await Reject(() => executor.DecideAsync(workflow.Id, new("Approved", "Outside covering shift", planStart.AddMinutes(15)), actor, default), "Rescheduled approval rechecks covering worker shifts");
+    db.ChangeTracker.Clear();
+    await Reject(() => executor.DecideAsync(workflow.Id, new("Approved", "Beyond deadline", planStart.AddDays(2)), actor, default), "Rescheduled approval still enforces the required date");
+    db.ChangeTracker.Clear();
+    var unapproved = await db.PlanningWorkflows.AsNoTracking().SingleAsync(x => x.Id == workflow.Id);
+    Check(unapproved.Status == "PendingProjectManagerApproval" && !await db.Set<WorkSchedule>().AnyAsync(x => x.WorkflowId == workflow.Id), "Failed time adjustments leave the saved proposal unapproved and create no bookings");
+    workflow = await executor.DecideAsync(workflow.Id, new("Approved", "Reviewed resources and updated dates", planStart), actor, default);
     Check(workflow.Status == "Approved" && await db.Set<WorkSchedule>().AnyAsync(x => x.WorkflowId == workflow.Id && x.Status == "Approved"), "Manager approval creates the validated schedule atomically");
+    Check(workflow.Plan?.GetProperty("scheduleAdjustment").GetProperty("startTime").GetDateTimeOffset() == planStart, "Approval records the manager's time adjustment for audit");
     Check((await inventory.GetMaterialAsync(material.Id, default)).ReservedStock == 1, "Manager approval reserves required stock");
     await Reject(() => executor.DecideAsync(workflow.Id, new("Approved", "Duplicate"), actor, default), "Approval cannot be applied twice");
     var approvedSchedule = await db.Set<WorkSchedule>().SingleAsync(x => x.WorkflowId == workflow.Id);

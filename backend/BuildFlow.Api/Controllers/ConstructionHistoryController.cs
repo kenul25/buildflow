@@ -19,7 +19,7 @@ public sealed class ConstructionHistoryController(BuildFlowDbContext db, Schedul
     public async Task<IActionResult> RequestDetails(Guid id, CancellationToken ct)
     {
         var row = await db.ResourceRequests.Include(x => x.Items).AsNoTracking().SingleOrDefaultAsync(x => x.Id == id, ct) ?? throw new ApiException(404, "not_found", "Request not found."); await Check(row.ActivityId, ct);
-        return Ok(new { row.Id, row.ProjectId, row.SiteId, row.ActivityId, row.Objective, row.Notes, row.BudgetLimit, row.RequiredBy, row.Status, items = row.Items.Select(x => new { x.Kind, x.Name, x.Quantity, x.Unit }) });
+        return Ok(new { row.Id, row.ProjectId, row.SiteId, row.ActivityId, row.Objective, row.Notes, row.BudgetLimit, row.RequiredBy, row.Status, items = row.Items.Select(x => new { x.Kind, x.Name, x.Quantity, x.Unit, x.ResourceCount }) });
     }
     [HttpPut("resource-requests/{id:guid}")]
     public async Task<IActionResult> Edit(Guid id, ResourceRequestWriteDto dto, CancellationToken ct)
@@ -29,8 +29,8 @@ public sealed class ConstructionHistoryController(BuildFlowDbContext db, Schedul
         if (row.Status != "Draft" || await db.PlanningWorkflows.AnyAsync(x => x.ResourceRequestId == id, ct)) throw new ApiException(409, "request_locked", "Only requests without a workflow can be edited.");
         if (dto.ActivityId != row.ActivityId || dto.ProjectId != row.ProjectId || dto.SiteId != row.SiteId) throw SchedulingService.Bad("Request hierarchy is immutable.");
         if (dto.Items.Count is < 1 or > 50 || dto.Items.Any(x => x.Quantity <= 0) || dto.RequiredBy < DateOnly.FromDateTime(DateTime.UtcNow)) throw SchedulingService.Bad("Invalid request items or required date.");
-        if (dto.Items.Any(x => x.Kind != "Material" && decimal.Truncate(x.Quantity) != x.Quantity)) throw SchedulingService.Bad("Workforce and equipment quantities must be whole numbers.");
-        db.ResourceRequestItems.RemoveRange(row.Items); row.Items = dto.Items.Select(x => new ResourceRequestItem { Id = Guid.NewGuid(), Kind = x.Kind, Name = x.Name.Trim(), Quantity = x.Quantity, Unit = x.Unit.Trim() }).ToList();
+        ResourceUsage.Validate(dto.Items);
+        db.ResourceRequestItems.RemoveRange(row.Items); row.Items = dto.Items.Select(x => new ResourceRequestItem { Id = Guid.NewGuid(), Kind = x.Kind, Name = x.Name.Trim(), Quantity = x.Quantity, Unit = x.Unit.Trim(), ResourceCount = x.ResourceCount }).ToList();
         row.Objective = dto.Objective.Trim(); row.Notes = dto.Notes?.Trim(); row.RequiredBy = dto.RequiredBy; row.BudgetLimit = dto.BudgetLimit;
         await db.SaveChangesAsync(ct); await tx.CommitAsync(ct); return await RequestDetails(id, ct);
     }

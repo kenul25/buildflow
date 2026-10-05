@@ -92,6 +92,7 @@ public sealed class ResourceRequest : BaseEntity
 
 public sealed class ResourceRequestItem : BaseEntity
 {
+    public int? ResourceCount { get; set; }
     public Guid ResourceRequestId { get; set; }
     public ResourceRequest ResourceRequest { get; set; } = null!;
     public string Kind { get; set; } = "Material";

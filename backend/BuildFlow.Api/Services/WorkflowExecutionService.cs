@@ -31,7 +31,7 @@ public sealed class WorkflowExecutionService(BuildFlowDbContext db, IPlanningCli
                 if (task["status"]!.GetValue<string>() == "Completed") continue;
                 var input = task["input"]!.AsObject();
                 var prior = plan["tasks"]!.AsArray().Where(x => x!["status"]!.GetValue<string>() == "Completed").ToList();
-                input["items"] = Node(workflow.ResourceRequest.Items.Select(x => new { x.Kind, x.Name, x.Quantity, x.Unit }));
+                input["items"] = Node(workflow.ResourceRequest.Items.Select(x => new { x.Kind, x.Name, x.Quantity, x.Unit, x.ResourceCount }));
                 input["inventorySnapshot"] = Node(await db.Materials.AsNoTracking().Where(x => !x.IsArchived).Select(x => new { materialId = x.Id, x.Name, x.Unit, x.CurrentStock, x.ReservedStock }).ToListAsync(ct));
                 input["inventoryResult"] = prior.FirstOrDefault(x => x!["agent"]!.GetValue<string>() == "InventoryAgent")?["output"]?.DeepClone();
                 input["procurementResult"] = prior.FirstOrDefault(x => x!["agent"]!.GetValue<string>() == "ProcurementAgent")?["output"]?.DeepClone();
@@ -86,7 +86,10 @@ public sealed class WorkflowExecutionService(BuildFlowDbContext db, IPlanningCli
         var proposal = Output(workflow, "SchedulingValidationAgent");
         if (proposal["status"]?.GetValue<string>() != "READY_FOR_APPROVAL" || proposal["validation"]?["isValid"]?.GetValue<bool>() != true || proposal["activityId"]?.GetValue<string>() != request.ActivityId.ToString()) throw Invalid("Scheduling proposal is not valid for this activity.");
         var start = DateTimeOffset.Parse(proposal["startTime"]!.GetValue<string>()).ToUniversalTime(); var end = DateTimeOffset.Parse(proposal["endTime"]!.GetValue<string>()).ToUniversalTime();
-        if (start < DateTimeOffset.UtcNow || request.RequiredBy is DateOnly required && DateOnly.FromDateTime(end.UtcDateTime) > required) throw Invalid("Proposed schedule is in the past or exceeds the required date.");
+        if (start < DateTimeOffset.UtcNow) throw Invalid("Proposed start time has passed. Choose a future schedule start before approving.");
+        if (request.RequiredBy is DateOnly required && DateOnly.FromDateTime(end.UtcDateTime) > required) throw Invalid("Proposed schedule exceeds the required date. Choose an earlier start or request a revised plan.");
+        var requiredHours = request.Items.Where(x => x.Kind != "Material").Select(ResourceUsage.Hours).DefaultIfEmpty(1).Max();
+        if ((end - start).TotalSeconds + 1 < (double)(requiredHours * 3600)) throw Invalid("Proposed schedule does not cover the requested resource usage.");
         await scheduling.ValidateScheduleAsync(new WorkSchedule { ActivityId = request.ActivityId, StartTime = start, EndTime = end }, ct);
         var workers = proposal["workers"]!.AsArray(); var equipment = proposal["equipment"]!.AsArray();
         if (workers.Select(x => x!["workerId"]!.GetValue<string>()).Distinct().Count() != workers.Count || equipment.Select(x => x!["equipmentId"]!.GetValue<string>()).Distinct().Count() != equipment.Count) throw Invalid("Proposal contains duplicate resources.");
@@ -94,9 +97,9 @@ public sealed class WorkflowExecutionService(BuildFlowDbContext db, IPlanningCli
         foreach (var item in request.Items.Where(x => x.Kind == "Workforce").GroupBy(x => x.Name.ToUpperInvariant()))
         {
             var skill = skills.SingleOrDefault(x => x.Name.Equals(item.Key, StringComparison.OrdinalIgnoreCase)) ?? throw Invalid("Required skill is missing.");
-            if (workers.Count(x => x!["requiredSkillId"]?.GetValue<string>() == skill.Id.ToString()) != item.Sum(x => x.Quantity)) throw Invalid("Workforce quantities do not match the request.");
+            if (workers.Count(x => x!["requiredSkillId"]?.GetValue<string>() == skill.Id.ToString()) != item.Sum(ResourceUsage.Count)) throw Invalid("Workforce quantities do not match the request.");
         }
-        if (workers.Count != request.Items.Where(x => x.Kind == "Workforce").Sum(x => x.Quantity)) throw Invalid("Unexpected worker allocations.");
+        if (workers.Count != request.Items.Where(x => x.Kind == "Workforce").Sum(ResourceUsage.Count)) throw Invalid("Unexpected worker allocations.");
         foreach (var worker in workers)
         {
             var workerId = Guid.Parse(worker!["workerId"]!.GetValue<string>()); var skillId = Guid.Parse(worker["requiredSkillId"]!.GetValue<string>());
@@ -112,8 +115,8 @@ public sealed class WorkflowExecutionService(BuildFlowDbContext db, IPlanningCli
         foreach (var requirement in request.Items.Where(x => x.Kind == "Equipment").GroupBy(x => x.Name.ToUpperInvariant()))
         {
             var matching = allocated.Where(x => x.Name.Equals(requirement.Key, StringComparison.OrdinalIgnoreCase) || x.Category.Equals(requirement.Key, StringComparison.OrdinalIgnoreCase)).ToList();
-            if (matching.Count < requirement.Sum(x => x.Quantity)) throw Invalid("Equipment quantities do not match the request.");
-            foreach (var x in matching.Take((int)requirement.Sum(x => x.Quantity))) allocated.Remove(x);
+            if (matching.Count < requirement.Sum(ResourceUsage.Count)) throw Invalid("Equipment quantities do not match the request.");
+            foreach (var x in matching.Take((int)requirement.Sum(ResourceUsage.Count))) allocated.Remove(x);
         }
         if (allocated.Count > 0) throw Invalid("Unexpected equipment allocations.");
         var recommendations = Output(workflow, "ProcurementAgent")["recommendations"]!.AsArray(); decimal total = 0;
@@ -148,6 +151,20 @@ public sealed class WorkflowExecutionService(BuildFlowDbContext db, IPlanningCli
         if (dto.Decision is not ("Approved" or "Rejected" or "RevisionRequested") || string.IsNullOrWhiteSpace(dto.Reason)) throw Invalid("Choose an approval decision and provide a reason.");
         if (dto.Decision == "Approved")
         {
+            if (dto.ScheduleStart is DateTimeOffset selectedStart)
+            {
+                var adjustedPlan = JsonNode.Parse(workflow.PlanJson!)!.AsObject();
+                var adjustedProposal = adjustedPlan["tasks"]!.AsArray().Select(x => x!.AsObject()).Single(x => x["agent"]!.GetValue<string>() == "SchedulingValidationAgent")["output"]!.AsObject();
+                var originalStart = DateTimeOffset.Parse(adjustedProposal["startTime"]!.GetValue<string>());
+                var originalEnd = DateTimeOffset.Parse(adjustedProposal["endTime"]!.GetValue<string>());
+                if (originalEnd <= originalStart) throw Invalid("Proposed schedule duration is invalid. Request a revised plan.");
+                var newStart = selectedStart.ToUniversalTime();
+                var newEnd = newStart + (originalEnd - originalStart);
+                adjustedProposal["startTime"] = newStart.ToString("O");
+                adjustedProposal["endTime"] = newEnd.ToString("O");
+                adjustedPlan["scheduleAdjustment"] = Node(new { originalStart, originalEnd, startTime = newStart, endTime = newEnd, actor, adjustedAt = DateTimeOffset.UtcNow });
+                workflow.PlanJson = adjustedPlan.ToJsonString();
+            }
             await ValidateAsync(workflow, ct);
             var proposal = Output(workflow, "SchedulingValidationAgent"); var request = workflow.ResourceRequest;
             var schedule = new WorkSchedule { Id = Guid.NewGuid(), Name = request.Objective[..Math.Min(160, request.Objective.Length)], ActivityId = request.ActivityId, WorkflowId = id, StartTime = DateTimeOffset.Parse(proposal["startTime"]!.GetValue<string>()).ToUniversalTime(), EndTime = DateTimeOffset.Parse(proposal["endTime"]!.GetValue<string>()).ToUniversalTime(), Status = "Approved", CreatedById = actor, UpdatedById = actor };
