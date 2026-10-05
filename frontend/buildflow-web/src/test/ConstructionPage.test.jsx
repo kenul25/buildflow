@@ -4,14 +4,43 @@ import React from 'react'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
-import { ConstructionListPage } from '../features/construction/ConstructionPage.jsx'
+import { ConstructionListPage, ConstructionFormPage } from '../features/construction/ConstructionPage.jsx'
+import { todayInColombo } from '../features/construction/constructionDates.js'
 import { constructionService } from '../features/construction/constructionService.js'
 
 vi.mock('../hooks/useAuth.js', () => ({ useAuth: () => ({ user: { roles: ['ProjectManager'] } }) }))
-vi.mock('../features/construction/constructionService.js', async (importOriginal) => ({ ...(await importOriginal()), constructionService: { list: vi.fn(), archive: vi.fn() } }))
+vi.mock('../features/construction/constructionService.js', async (importOriginal) => ({ ...(await importOriginal()), constructionService: { list: vi.fn(), archive: vi.fn(), get: vi.fn(), engineers: vi.fn().mockResolvedValue([]), create: vi.fn(), update: vi.fn() } }))
 
-beforeEach(() => vi.clearAllMocks())
-afterEach(() => { cleanup(); vi.restoreAllMocks() })
+beforeEach(() => { vi.clearAllMocks(); constructionService.engineers.mockResolvedValue([]) })
+afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.useRealTimers() })
+
+function renderProjectForm(path = '/construction/projects/new') {
+  render(<MemoryRouter initialEntries={[path]}><Routes><Route path="/construction/:kind/new" element={<ConstructionFormPage />} /><Route path="/construction/:kind/:id/edit" element={<ConstructionFormPage />} /></Routes></MemoryRouter>)
+}
+
+test('project date picker uses today in Colombo and end date follows the start', async () => {
+  expect(todayInColombo(new Date('2026-10-04T20:00:00Z'))).toBe('2026-10-05')
+  renderProjectForm()
+  expect(screen.getByLabelText('Start date')).toHaveAttribute('min', todayInColombo())
+  fireEvent.change(screen.getByLabelText('Start date'), { target: { value: '2099-10-10' } })
+  expect(screen.getByLabelText('End date')).toHaveAttribute('min', '2099-10-10')
+  fireEvent.change(screen.getByLabelText('Start date'), { target: { value: '2000-10-04' } })
+  fireEvent.submit(screen.getByRole('button', { name: 'Save' }).closest('form'))
+  expect(await screen.findByRole('alert')).toHaveTextContent('Start date must be today or later.')
+  expect(constructionService.create).not.toHaveBeenCalled()
+})
+
+test('editing keeps historical start read-only until explicitly changed', async () => {
+  constructionService.get.mockResolvedValue({ name: 'Existing project', code: 'OLD', startDate: '2020-01-01' })
+  renderProjectForm('/construction/projects/old/edit')
+  const start = await screen.findByLabelText('Start date')
+  expect(start).toHaveAttribute('readonly')
+  expect(start).toHaveValue('2020-01-01')
+  fireEvent.click(screen.getByRole('button', { name: 'Change start date' }))
+  expect(start).not.toHaveAttribute('readonly')
+  expect(start).toHaveValue('')
+  expect(start).toHaveAttribute('min')
+})
 
 test('shows an empty state and create action', async () => {
   constructionService.list.mockResolvedValue({ items: [], total: 0 })

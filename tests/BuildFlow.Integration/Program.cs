@@ -101,9 +101,16 @@ try {
             })).StatusCode == HttpStatusCode.BadRequest, "Equipment usage rejects material units");
             Check((await http.PostAsJsonAsync("scheduling/workers", new { name = "Forbidden worker" })).StatusCode == HttpStatusCode.Forbidden, "Site users cannot create workers through HTTP");
             http.DefaultRequestHeaders.Authorization = new("Bearer", tokens.CreateAccessToken(testUser, ["ProjectManager"]).Token);
-            var projectCreate = await http.PostAsJsonAsync("projects", new { name = "Delete verification project", code = "DELETE-TEST", status = "Planned" });
+            var constructionToday = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeBySystemTimeZoneId(DateTimeOffset.UtcNow, "Asia/Colombo").DateTime);
+            Check((await http.PostAsJsonAsync("projects", new { name = "Invalid past project", code = "PAST-TEST", startDate = constructionToday.AddDays(-1) })).StatusCode == HttpStatusCode.BadRequest, "New projects cannot start before today in Colombo");
+            Check((await http.PostAsJsonAsync("phases", new { name = "Invalid past phase", parentId = site.Id, startDate = constructionToday.AddDays(-1) })).StatusCode == HttpStatusCode.BadRequest, "New phases cannot start before today in Colombo");
+            var projectCreate = await http.PostAsJsonAsync("projects", new { name = "Delete verification project", code = "DELETE-TEST", status = "Planned", startDate = constructionToday });
             Check(projectCreate.StatusCode == HttpStatusCode.Created, "Disposable project created for Delete verification");
             var deleteProjectId = (await projectCreate.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+            var historicalProject = await db.Projects.SingleAsync(x => x.Id == deleteProjectId);
+            historicalProject.StartDate = constructionToday.AddDays(-10); await db.SaveChangesAsync();
+            Check((await http.PutAsJsonAsync($"projects/{deleteProjectId}", new { name = "Delete verification project", code = "DELETE-TEST", status = "Active", startDate = constructionToday.AddDays(-10) })).IsSuccessStatusCode, "Historical project starts may remain unchanged during edits");
+            Check((await http.PutAsJsonAsync($"projects/{deleteProjectId}", new { name = "Delete verification project", code = "DELETE-TEST", status = "Active", startDate = constructionToday.AddDays(-9) })).StatusCode == HttpStatusCode.BadRequest, "Historical project starts cannot change to another past date");
             var siteCreate = await http.PostAsJsonAsync("sites", new { name = "Delete verification site", parentId = deleteProjectId, address = "Disposable site" });
             Check(siteCreate.StatusCode == HttpStatusCode.Created, "Disposable child site created for deletion guard");
             var deleteSiteId = (await siteCreate.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();

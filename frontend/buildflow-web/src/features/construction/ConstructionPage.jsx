@@ -6,6 +6,7 @@ import { constructionService, kinds } from './constructionService.js'
 import './construction.css'
 import { allRows } from '../../services/lookups.js'
 import ActivityOperations from './ActivityOperations.jsx'
+import { todayInColombo } from './constructionDates.js'
 
 const fields = {
   projects: [['code', 'Project code', 'text', true], ['status', 'Status', 'select', false, ['Planned', 'Active', 'OnHold', 'Completed']], ['startDate', 'Start date', 'date'], ['endDate', 'End date', 'date']],
@@ -78,15 +79,21 @@ export function ConstructionFormPage() {
   const [form, setForm] = useState({ name: '', description: '', code: '', status: 'Planned', parentId: '', address: '', sequence: 0, startDate: '', endDate: '', dueDate: '', assignedEngineerId: '' })
   const [parents, setParents] = useState([]); const [loading, setLoading] = useState(Boolean(id)); const [saving, setSaving] = useState(false); const [error, setError] = useState('')
   const [engineers, setEngineers] = useState([])
+  const [originalStart, setOriginalStart] = useState('')
+  const today = todayInColombo()
+  const historicalStart = Boolean(id && originalStart && originalStart < today && form.startDate === originalStart)
   useEffect(() => { if (!id && params.get('parentId')) queueMicrotask(() => setForm((current) => ({ ...current, parentId: params.get('parentId') }))) }, [id, params])
   useEffect(() => {
-    if (id) constructionService.get(kind, id).then((data) => setForm(Object.fromEntries(Object.entries(form).map(([key]) => [key, data[key] ?? ''])))).catch((cause) => setError(apiErrorMessage(cause))).finally(() => setLoading(false))
+    if (id) constructionService.get(kind, id).then((data) => { setForm(Object.fromEntries(Object.entries(form).map(([key]) => [key, data[key] ?? '']))); setOriginalStart(data.startDate ?? '') }).catch((cause) => setError(apiErrorMessage(cause))).finally(() => setLoading(false))
     if (kinds[kind].parent) allRows('/' + kinds[kind].parent).then(setParents).catch((cause) => setError(apiErrorMessage(cause)))
     if (kind === 'projects') constructionService.engineers().then(setEngineers).catch((cause) => setError(apiErrorMessage(cause)))
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kind, id])
   async function submit(event) {
-    event.preventDefault(); setSaving(true); setError('')
+    event.preventDefault(); setError('')
+    if (form.startDate && form.startDate < todayInColombo() && !historicalStart) { setError('Start date must be today or later.'); return }
+    if (form.startDate && form.endDate && form.endDate < form.startDate) { setError('End date must be on or after the start date.'); return }
+    setSaving(true)
     try {
       const body = { ...form, parentId: form.parentId || null, assignedEngineerId: form.assignedEngineerId || null, startDate: form.startDate || null, endDate: form.endDate || null, dueDate: form.dueDate || null, sequence: Number(form.sequence) }
       const result = id ? await constructionService.update(kind, id, body) : await constructionService.create(kind, body)
@@ -94,5 +101,5 @@ export function ConstructionFormPage() {
     } catch (cause) { setError(apiErrorMessage(cause)) } finally { setSaving(false) }
   }
   const set = (key, value) => setForm((current) => ({ ...current, [key]: value }))
-  return <main className="dashboard-content construction-page"><Link to={`/construction/${kind}`}>← Back to {kinds[kind].title}</Link><div className="construction-heading"><div><span className="eyebrow">{kinds[kind].title}</span><h1>{id ? 'Edit' : 'Create'} {kind.slice(0, -1)}</h1></div></div>{loading ? <div className="table-state"><span className="spinner" /> Loading…</div> : <form className="construction-panel construction-form" onSubmit={submit}>{error && <p className="form-alert" role="alert">{error}</p>}<label>Name<input required minLength={2} maxLength={160} value={form.name} onChange={(e) => set('name', e.target.value)} /></label><label>Description<textarea maxLength={2000} value={form.description || ''} onChange={(e) => set('description', e.target.value)} /></label>{kinds[kind].parent && <label>Parent {kinds[kinds[kind].parent].title}<select required value={form.parentId} onChange={(e) => set('parentId', e.target.value)}><option value="">Select parent</option>{parents.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>}{fields[kind].map(([key, label, type, required, options]) => <label key={key}>{label}{type === 'select' ? <select value={form[key] || ''} onChange={(e) => set(key, e.target.value)}>{options.map((option) => <option key={option}>{option}</option>)}</select> : <input type={type} required={required} value={form[key] || ''} onChange={(e) => set(key, e.target.value)} />}</label>)}{kind === 'projects' && <label>Assigned site engineer<select value={form.assignedEngineerId || ''} onChange={(e) => set('assignedEngineerId', e.target.value)}><option value="">Unassigned</option>{engineers.map((engineer) => <option value={engineer.id} key={engineer.id}>{engineer.fullName}</option>)}</select></label>}<div className="modal-actions"><Link className="button button-secondary" to={`/construction/${kind}`}>Cancel</Link><button className="button button-primary" disabled={saving}>{saving ? 'Saving…' : 'Save'}</button></div></form>}</main>
+  return <main className="dashboard-content construction-page"><Link to={`/construction/${kind}`}>← Back to {kinds[kind].title}</Link><div className="construction-heading"><div><span className="eyebrow">{kinds[kind].title}</span><h1>{id ? 'Edit' : 'Create'} {kind.slice(0, -1)}</h1></div></div>{loading ? <div className="table-state"><span className="spinner" /> Loading…</div> : <form className="construction-panel construction-form" onSubmit={submit}>{error && <p className="form-alert" role="alert">{error}</p>}<label>Name<input required minLength={2} maxLength={160} value={form.name} onChange={(e) => set('name', e.target.value)} /></label><label>Description<textarea maxLength={2000} value={form.description || ''} onChange={(e) => set('description', e.target.value)} /></label>{kinds[kind].parent && <label>Parent {kinds[kinds[kind].parent].title}<select required value={form.parentId} onChange={(e) => set('parentId', e.target.value)}><option value="">Select parent</option>{parents.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>}{fields[kind].map(([key, label, type, required, options]) => <label key={key}>{label}{type === 'select' ? <select value={form[key] || ''} onChange={(e) => set(key, e.target.value)}>{options.map((option) => <option key={option}>{option}</option>)}</select> : <><input aria-label={label} type={type} required={required} min={key === 'startDate' ? today : key === 'endDate' ? form.startDate || undefined : undefined} readOnly={key === 'startDate' && historicalStart} value={form[key] || ''} onChange={(e) => set(key, e.target.value)} />{key === 'startDate' && historicalStart && <><small>Existing start date kept. Choose today or later when changing it.</small><button type="button" className="table-action" onClick={() => set('startDate', '')}>Change start date</button></>}</>}</label>)}{kind === 'projects' && <label>Assigned site engineer<select value={form.assignedEngineerId || ''} onChange={(e) => set('assignedEngineerId', e.target.value)}><option value="">Unassigned</option>{engineers.map((engineer) => <option value={engineer.id} key={engineer.id}>{engineer.fullName}</option>)}</select></label>}<div className="modal-actions"><Link className="button button-secondary" to={`/construction/${kind}`}>Cancel</Link><button className="button button-primary" disabled={saving}>{saving ? 'Saving…' : 'Save'}</button></div></form>}</main>
 }

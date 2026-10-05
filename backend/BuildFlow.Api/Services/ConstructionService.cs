@@ -119,6 +119,10 @@ public sealed class ConstructionService(IConstructionRepository repository, Buil
         entity.Name = dto.Name.Trim();
         entity.Description = dto.Description?.Trim();
         if (dto.StartDate > dto.EndDate) throw Bad("Start date must not be after end date.");
+        var originalStart = entity switch { Project p => p.StartDate, ConstructionPhase p => p.StartDate, _ => (DateOnly?)null };
+        var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeBySystemTimeZoneId(DateTimeOffset.UtcNow, "Asia/Colombo").DateTime);
+        if (entity is Project or ConstructionPhase && dto.StartDate is DateOnly start && start < today && start != originalStart)
+            throw Bad("Start date must be today or later. An existing historical start date may be kept unchanged.");
         switch (entity)
         {
             case Project project:
