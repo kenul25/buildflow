@@ -51,6 +51,7 @@ public sealed class ConstructionActivity : ConstructionRecord
 
 public sealed class ProgressUpdate : BaseEntity
 {
+    public bool IsArchived { get; set; }
     public Guid? CorrectionOfId { get; set; }
     public Guid ActivityId { get; set; }
     public ConstructionActivity Activity { get; set; } = null!;

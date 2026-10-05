@@ -96,8 +96,8 @@ public sealed class ConstructionOperationsService(BuildFlowDbContext db, IPlanni
     public async Task<IReadOnlyList<ProgressDto>> ProgressHistoryAsync(Guid activityId, Guid actorId, bool manager, CancellationToken ct)
     {
         await ActivityAsync(activityId, actorId, manager, ct);
-        return await db.ProgressUpdates.AsNoTracking().Where(x => x.ActivityId == activityId).OrderByDescending(x => x.CreatedAt)
-            .Select(x => new ProgressDto(x.Id, x.ActivityId, x.ProgressPercent, x.WorkCompleted, x.Blockers, x.SubmittedById, x.CreatedAt)).ToListAsync(ct);
+        return await db.ProgressUpdates.AsNoTracking().Where(x => x.ActivityId == activityId && !x.IsArchived).OrderByDescending(x => x.CreatedAt).ThenByDescending(x => x.Id)
+            .Select(x => new ProgressDto(x.Id, x.ActivityId, x.ProgressPercent, x.WorkCompleted, x.Blockers, x.SubmittedById, x.CreatedAt, manager || x.SubmittedById == actorId)).ToListAsync(ct);
     }
 
     public async Task<ResourceRequestDto> SubmitRequestAsync(ResourceRequestWriteDto dto, Guid actorId, bool manager, CancellationToken ct)
@@ -126,7 +126,8 @@ public sealed class ConstructionOperationsService(BuildFlowDbContext db, IPlanni
         return await query.OrderByDescending(r => r.CreatedAt).Select(r => new ResourceRequestSummaryDto(
             r.Id, r.ProjectId, r.ActivityId, r.Objective, r.CreatedAt,
             db.PlanningWorkflows.Where(w => w.ResourceRequestId == r.Id).Select(w => (Guid?)w.Id).FirstOrDefault(),
-            db.PlanningWorkflows.Where(w => w.ResourceRequestId == r.Id).Select(w => w.Status).FirstOrDefault()
+            db.PlanningWorkflows.Where(w => w.ResourceRequestId == r.Id).Select(w => w.Status).FirstOrDefault(),
+            r.Status == "Draft" && !db.PlanningWorkflows.Any(w => w.ResourceRequestId == r.Id && w.Status != "Queued" && w.Status != "PendingProjectManagerApproval")
         )).ToListAsync(ct);
     }
 
@@ -138,7 +139,7 @@ public sealed class ConstructionOperationsService(BuildFlowDbContext db, IPlanni
         if (request.Status == "Cancelled") throw new ApiException(409, "cancelled_request", "Cancelled requests cannot be planned.");
         await ActivityAsync(request.ActivityId, actorId, manager, ct);
         var existing = await db.PlanningWorkflows.FirstOrDefaultAsync(w => w.ResourceRequestId == requestId, ct);
-        if (existing is not null && existing.Status is not ("Failed" or "RevisionRequested")) return Map(existing);
+        if (existing is not null && existing.Status is not ("Failed" or "RevisionRequested" or "Queued")) return Map(existing);
         var priorHistory = ReadExecutionHistory(existing?.PlanJson, existing?.Error);
         var workflow = existing ?? new PlanningWorkflow { Id = Guid.NewGuid(), ResourceRequestId = requestId };
         workflow.Status = "Queued";
