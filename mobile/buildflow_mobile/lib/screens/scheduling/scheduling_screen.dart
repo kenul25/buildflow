@@ -3,6 +3,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../../services/scheduling_service.dart';
 import '../../services/project_service.dart';
+import '../home/operations_navigation.dart';
 
 class SchedulingScreen extends StatefulWidget {
   const SchedulingScreen({required this.service, super.key});
@@ -19,14 +20,6 @@ class _SchedulingScreenState extends State<SchedulingScreen> {
     'equipment',
     'equipment-requests',
     'issues',
-  ];
-  final _labels = [
-    'Assignments',
-    'Equipment bookings',
-    'Schedules',
-    'Equipment',
-    'Draft requests',
-    'Site issues',
   ];
   final Map<String, List<Map<String, dynamic>>> _data = {};
   bool _loading = true, _busy = false;
@@ -87,151 +80,267 @@ class _SchedulingScreenState extends State<SchedulingScreen> {
       '$id';
   @override
   Widget build(BuildContext context) {
-    if (_loading) return const Center(child: CircularProgressIndicator());
-    if (_error != null) {
-      return Center(
+    final groups = switch (_tab) {
+      0 => [('worker-assignments', 'Your assignments')],
+      1 => [
+        ('equipment-reservations', 'Equipment bookings'),
+        ('equipment-requests', 'Equipment requests'),
+        ('equipment', 'Equipment catalog'),
+      ],
+      _ => [('schedules', 'Work schedules'), ('issues', 'Site reports')],
+    };
+    final hasRows = groups.any((group) => (_data[group.$1] ?? []).isNotEmpty);
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 720),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
           children: [
-            Text(_error!),
-            TextButton(onPressed: _load, child: const Text('Retry')),
-          ],
-        ),
-      );
-    }
-    final rows = _data[_kinds[_tab]] ?? [];
-    return Column(
-      children: [
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: List.generate(
-              _labels.length,
-              (index) => Padding(
-                padding: const EdgeInsets.all(4),
-                child: ChoiceChip(
-                  label: Text(_labels[index]),
-                  selected: _tab == index,
-                  onSelected: (_) => setState(() => _tab = index),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: SegmentedButton<int>(
+                expandedInsets: EdgeInsets.zero,
+                showSelectedIcon: false,
+                segments: [
+                  for (var index = 0; index < 3; index++)
+                    ButtonSegment(
+                      value: index,
+                      label: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          ['Assignments', 'Equipment', 'Timeline'][index],
+                        ),
+                      ),
+                    ),
+                ],
+                selected: {_tab},
+                onSelectionChanged: (selection) =>
+                    setState(() => _tab = selection.single),
+                style: ButtonStyle(
+                  minimumSize: const WidgetStatePropertyAll(
+                    Size.fromHeight(48),
+                  ),
+                  padding: const WidgetStatePropertyAll(
+                    EdgeInsets.symmetric(horizontal: 10),
+                  ),
+                  textStyle: const WidgetStatePropertyAll(
+                    TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                  ),
+                  foregroundColor: WidgetStateProperty.resolveWith(
+                    (states) => states.contains(WidgetState.selected)
+                        ? OperationsNavigation.blue
+                        : const Color(0xFF64748B),
+                  ),
+                  backgroundColor: WidgetStateProperty.resolveWith(
+                    (states) => states.contains(WidgetState.selected)
+                        ? OperationsNavigation.blue.withValues(alpha: .09)
+                        : Theme.of(context).colorScheme.surface,
+                  ),
+                  side: const WidgetStatePropertyAll(
+                    BorderSide(color: Color(0xFFE2E8F0)),
+                  ),
+                  shape: WidgetStatePropertyAll(
+                    RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
                 ),
               ),
             ),
-          ),
-        ),
-        Wrap(
-          spacing: 8,
-          children: [
-            FilledButton.icon(
-              onPressed: _busy ? null : _scan,
-              icon: const Icon(Icons.qr_code_scanner),
-              label: const Text('Scan equipment'),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _ScheduleAction(
+                      label: 'Scan',
+                      tooltip: 'Scan equipment',
+                      icon: Icons.qr_code_scanner_rounded,
+                      onTap: _busy || _loading ? null : _scan,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _ScheduleAction(
+                      label: 'Request',
+                      tooltip: 'Request equipment',
+                      icon: Icons.add_circle_outline_rounded,
+                      onTap: _busy || _loading
+                          ? null
+                          : () => _form(false),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _ScheduleAction(
+                      label: 'Report',
+                      tooltip: 'Report an issue',
+                      icon: Icons.flag_outlined,
+                      onTap: _busy || _loading
+                          ? null
+                          : () => _form(true),
+                    ),
+                  ),
+                ],
+              ),
             ),
-            TextButton(
-              onPressed: _busy ? null : () => _form(false),
-              child: const Text('Request equipment'),
-            ),
-            TextButton(
-              onPressed: _busy ? null : () => _form(true),
-              child: const Text('Report issue'),
+            if (_busy)
+              const LinearProgressIndicator(color: OperationsNavigation.blue),
+            Expanded(
+              child: RefreshIndicator(
+                color: OperationsNavigation.blue,
+                onRefresh: _load,
+                child: CustomScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  slivers: [
+                    if (_loading)
+                      const SliverFillRemaining(
+                        hasScrollBody: false,
+                        child: Center(
+                          child: CircularProgressIndicator(
+                            color: OperationsNavigation.blue,
+                          ),
+                        ),
+                      )
+                    else if (_error != null)
+                      SliverFillRemaining(
+                        hasScrollBody: false,
+                        child: _ScheduleEmptyState(
+                          icon: Icons.cloud_off_rounded,
+                          title: 'Unable to load your schedule',
+                          description: 'Check your connection and try again.',
+                          action: 'Retry',
+                          onRefresh: _load,
+                        ),
+                      )
+                    else if (!hasRows)
+                      SliverFillRemaining(
+                        hasScrollBody: false,
+                        child: _ScheduleEmptyState(
+                          icon: [
+                            Icons.assignment_outlined,
+                            Icons.construction_rounded,
+                            Icons.calendar_month_rounded,
+                          ][_tab],
+                          title: [
+                            'No assignments yet',
+                            'No equipment activity yet',
+                            'Your timeline is clear',
+                          ][_tab],
+                          description: [
+                            'Your assigned site work will appear here once it is scheduled.',
+                            'Equipment bookings and requests will appear here. Use Request to ask for equipment.',
+                            'Scheduled work and site reports will appear here as your project progresses.',
+                          ][_tab],
+                          action: 'Refresh',
+                          onRefresh: _load,
+                        ),
+                      )
+                    else
+                      SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                        sliver: SliverList.list(
+                          children: [
+                            for (final group in groups)
+                              if ((_data[group.$1] ?? []).isNotEmpty) ...[
+                                Padding(
+                                  padding: const EdgeInsets.only(
+                                    top: 8,
+                                    bottom: 12,
+                                  ),
+                                  child: Text(
+                                    group.$2,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleMedium
+                                        ?.copyWith(fontWeight: FontWeight.w700),
+                                  ),
+                                ),
+                                for (final row in _data[group.$1]!)
+                                  _recordCard(row, group.$1),
+                              ],
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              ),
             ),
           ],
         ),
-        Expanded(
-          child: RefreshIndicator(
-            onRefresh: _load,
-            child: ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(16),
-              children: rows.isEmpty
-                  ? [
-                      const Padding(
-                        padding: EdgeInsets.all(24),
-                        child: Text('No records for your assigned sites.'),
-                      ),
-                    ]
-                  : rows
-                        .map(
-                          (row) => Card(
-                            child: Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    '${row['name']}',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleMedium,
-                                  ),
-                                  Text('Status: ${row['status'] ?? 'Active'}'),
-                                  if (row['scheduleId'] != null)
-                                    Text(
-                                      'Schedule: ${_scheduleLabel(row['scheduleId'])}',
-                                    ),
-                                  if (row['startTime'] != null)
-                                    Text(
-                                      'Start: ${DateTime.parse(row['startTime'] as String).toLocal()}',
-                                    ),
-                                  if (row['endTime'] != null)
-                                    Text(
-                                      'End: ${DateTime.parse(row['endTime'] as String).toLocal()}',
-                                    ),
-                                  if (row['notes'] != null)
-                                    Text('${row['notes']}'),
-                                  if (_tab == 0 &&
-                                      ![
-                                        'Completed',
-                                        'Cancelled',
-                                      ].contains(row['status']))
-                                    Wrap(
-                                      spacing: 8,
-                                      children: ['InProgress', 'Completed', 'Delayed']
-                                          .map(
-                                            (status) => TextButton(
-                                              onPressed: _busy
-                                                  ? null
-                                                  : () => _perform(
-                                                      () => widget.service.status(
-                                                        row['id'] as String,
-                                                        status,
-                                                        '${row['notes'] ?? ''}',
-                                                      ),
-                                                    ),
-                                              child: Text(
-                                                status == 'InProgress'
-                                                    ? 'Start work'
-                                                    : status == 'Completed'
-                                                    ? 'Complete'
-                                                    : 'Delayed',
-                                              ),
-                                            ),
-                                          )
-                                          .toList(),
-                                    ),
-                                  if (_tab == 4 && row['status'] == 'Draft')
-                                    TextButton(
-                                      onPressed: _busy
-                                          ? null
-                                          : () => _perform(
-                                              () =>
-                                                  widget.service.cancelRequest(
-                                                    row['id'] as String,
-                                                  ),
-                                            ),
-                                      child: const Text('Cancel draft request'),
-                                    ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        )
-                        .toList(),
-            ),
-          ),
-        ),
-      ],
+      ),
     );
   }
+
+  Widget _recordCard(Map<String, dynamic> row, String kind) => Card(
+    margin: const EdgeInsets.only(bottom: 12),
+    child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '${row['name']}',
+            style: Theme.of(context).textTheme.titleMedium
+                ?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Status: ${row['status'] ?? 'Active'}',
+            style: Theme.of(context).textTheme.bodySmall
+                ?.copyWith(color: const Color(0xFF64748B)),
+          ),
+          if (row['scheduleId'] != null)
+            Text('Schedule: ${_scheduleLabel(row['scheduleId'])}'),
+          if (row['startTime'] != null)
+            Text(
+              'Start: ${DateTime.parse(row['startTime'] as String).toLocal()}',
+            ),
+          if (row['endTime'] != null)
+            Text('End: ${DateTime.parse(row['endTime'] as String).toLocal()}'),
+          if (row['notes'] != null) Text('${row['notes']}'),
+          if (kind == 'worker-assignments' &&
+              !['Completed', 'Cancelled'].contains(row['status']))
+            Wrap(
+              spacing: 8,
+              children: ['InProgress', 'Completed', 'Delayed']
+                  .map(
+                    (status) => TextButton(
+                      style: TextButton.styleFrom(
+                        foregroundColor: OperationsNavigation.blue,
+                      ),
+                      onPressed: _busy
+                          ? null
+                          : () => _perform(
+                              () => widget.service.status(
+                                row['id'] as String,
+                                status,
+                                '${row['notes'] ?? ''}',
+                              ),
+                            ),
+                      child: Text(
+                        status == 'InProgress'
+                            ? 'Start work'
+                            : status == 'Completed'
+                            ? 'Complete'
+                            : 'Delayed',
+                      ),
+                    ),
+                  )
+                  .toList(),
+            ),
+          if (kind == 'equipment-requests' && row['status'] == 'Draft')
+            TextButton(
+              onPressed: _busy
+                  ? null
+                  : () => _perform(
+                      () => widget.service.cancelRequest(row['id'] as String),
+                    ),
+              child: const Text('Cancel draft request'),
+            ),
+        ],
+      ),
+    ),
+  );
 
   Future<void> _scan() async {
     final code = await Navigator.of(
@@ -378,6 +487,171 @@ class _SchedulingScreenState extends State<SchedulingScreen> {
     title.dispose();
     notes.dispose();
   }
+}
+
+class _ScheduleAction extends StatelessWidget {
+  const _ScheduleAction({
+    required this.label,
+    required this.tooltip,
+    required this.icon,
+    required this.onTap,
+  });
+  final String label, tooltip;
+  final IconData icon;
+  final VoidCallback? onTap;
+  @override
+  Widget build(BuildContext context) => Tooltip(
+    message: tooltip,
+    child: Semantics(
+      button: true,
+      enabled: onTap != null,
+      label: tooltip,
+      child: Material(
+        color: Theme.of(context).colorScheme.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: const BorderSide(color: Color(0xFFE2E8F0)),
+        ),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(14),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
+            child: Column(
+              children: [
+                Icon(
+                  icon,
+                  color: onTap == null
+                      ? const Color(0xFF94A3B8)
+                      : OperationsNavigation.blue,
+                  size: 22,
+                ),
+                const SizedBox(height: 8),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: onTap == null
+                          ? const Color(0xFF94A3B8)
+                          : Theme.of(context).colorScheme.onSurface,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+class _ScheduleEmptyState extends StatelessWidget {
+  const _ScheduleEmptyState({
+    required this.icon,
+    required this.title,
+    required this.description,
+    required this.action,
+    required this.onRefresh,
+  });
+  final IconData icon;
+  final String title, description, action;
+  final VoidCallback onRefresh;
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Padding(
+      padding: const EdgeInsets.fromLTRB(28, 24, 28, 32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ExcludeSemantics(
+            child: SizedBox(
+              width: 136,
+              height: 124,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  Container(
+                    width: 112,
+                    height: 112,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: OperationsNavigation.blue.withValues(alpha: .05),
+                    ),
+                  ),
+                  Transform.rotate(
+                    angle: -.08,
+                    child: Container(
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.surface,
+                        border: Border.all(
+                          color: OperationsNavigation.blue.withValues(
+                            alpha: .16,
+                          ),
+                        ),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Icon(
+                        icon,
+                        size: 40,
+                        color: OperationsNavigation.blue,
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    right: 10,
+                    bottom: 12,
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.surface,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: const Icon(
+                        Icons.check_rounded,
+                        size: 20,
+                        color: OperationsNavigation.blue,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.titleLarge
+                ?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            description,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyMedium
+                ?.copyWith(color: const Color(0xFF64748B), height: 1.5),
+          ),
+          const SizedBox(height: 20),
+          OutlinedButton.icon(
+            onPressed: onRefresh,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: OperationsNavigation.blue,
+              minimumSize: const Size(120, 44),
+            ),
+            icon: const Icon(Icons.refresh_rounded, size: 20),
+            label: Text(action),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class EquipmentScanner extends StatefulWidget {
