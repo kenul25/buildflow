@@ -1,0 +1,9 @@
+bin
+obj
+uploads
+.env
+.env.*
+appsettings.Development.json
+Properties/launchSettings.json
+*.user
+*.log

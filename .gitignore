@@ -12,6 +12,7 @@ backend/BuildFlow.Api/uploads/
 # React / Node
 **/node_modules/
 **/dist/
+**/.vercel/
 
 # Flutter / Dart
 **/.dart_tool/
