@@ -10,6 +10,10 @@ from fastapi.testclient import TestClient
 from main import app
 
 
+def instant_duration(result):
+    return datetime.fromisoformat(result['endTime']) - datetime.fromisoformat(result['startTime'])
+
+
 class ResourcePlanningTests(unittest.TestCase):
     def data(self):
         now = datetime.now(timezone.utc)
@@ -31,6 +35,40 @@ class ResourcePlanningTests(unittest.TestCase):
         self.assertEqual(result['estimatedTotal'], 7.5)
         self.assertEqual(result['sideEffects'], [])
         self.assertEqual(data, before)
+
+    def test_fractional_equipment_hours_use_machine_count(self):
+        data = self.data()
+        data['items'] = [{'kind': 'Equipment', 'name': 'Crane', 'quantity': 2.5, 'unit': 'hours', 'resourceCount': 1}]
+        data['inventoryResult'] = {'items': []}
+        result = propose(data)
+        self.assertEqual(result['status'], 'READY_FOR_APPROVAL')
+        self.assertEqual(len(result['equipment']), 1)
+        self.assertEqual(instant_duration(result), timedelta(hours=2.5))
+
+    def test_mandays_are_effort_and_require_covering_shift(self):
+        data = self.data()
+        data['items'] = [{'kind': 'Workforce', 'name': 'Masonry', 'quantity': 2, 'unit': 'mandays', 'resourceCount': 1}]
+        data['inventoryResult'] = {'items': []}
+        result = propose(data)
+        self.assertEqual(result['status'], 'READY_FOR_APPROVAL')
+        self.assertEqual(len(result['workers']), 1)
+        self.assertEqual(instant_duration(result), timedelta(hours=16))
+        shift = data['schedulingSnapshot']['shifts'][0]
+        shift['endTime'] = (datetime.fromisoformat(shift['startTime']) + timedelta(hours=8)).isoformat()
+        self.assertEqual(propose(data)['status'], 'INVALID')
+
+    def test_total_effort_is_shared_between_workers(self):
+        data = self.data()
+        snapshot = data['schedulingSnapshot']
+        snapshot['workers'].append({'id': 'worker-2', 'isActive': True})
+        snapshot['workerSkills'].append({'workerId': 'worker-2', 'skillId': 'skill'})
+        snapshot['shifts'].append({**snapshot['shifts'][0], 'workerId': 'worker-2'})
+        data['items'] = [{'kind': 'Workforce', 'name': 'Masonry', 'quantity': 4, 'unit': 'mandays', 'resourceCount': 2}]
+        data['inventoryResult'] = {'items': []}
+        result = propose(data)
+        self.assertEqual(result['status'], 'READY_FOR_APPROVAL')
+        self.assertEqual(len(result['workers']), 2)
+        self.assertEqual(instant_duration(result), timedelta(hours=16))
 
     def test_expired_quote_and_unit_mismatch_rejected(self):
         data = self.data()

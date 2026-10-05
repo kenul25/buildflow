@@ -27,6 +27,18 @@ SYSTEM_INSTRUCTION = (
 )
 
 
+def gemini_response_schema() -> dict[str, Any]:
+    """Omit unsupported provider keywords; local validation remains strict."""
+    def compatible(value):
+        if isinstance(value, dict):
+            return {key: compatible(child) for key, child in value.items() if key != "additionalProperties"}
+        if isinstance(value, list):
+            return [compatible(child) for child in value]
+        return value
+
+    return compatible(ProposedPlan.model_json_schema())
+
+
 class GeminiGateway:
     async def generate(self, request: PlanningRequest) -> Any:
         key = os.environ.get("GEMINI_API_KEY")
@@ -47,7 +59,7 @@ class GeminiGateway:
                 config=types.GenerateContentConfig(
                     system_instruction=SYSTEM_INSTRUCTION,
                     response_mime_type="application/json",
-                    response_schema=ProposedPlan,
+                    response_schema=gemini_response_schema(),
                     temperature=0.1,
                     tools=[],
                 ),

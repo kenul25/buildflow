@@ -20,6 +20,16 @@ def instant(value):
     return result.replace(tzinfo=timezone.utc) if result.tzinfo is None else result.astimezone(timezone.utc)
 
 
+def resource_hours(item):
+    if item['kind'] == 'Material' or item.get('resourceCount') is None:
+        return Decimal(1)
+    factors = {'hours': 1, 'shifts': 8, 'days': 8, 'mandays': 8, 'weeks': 40, 'workers': 0}
+    factor = factors.get(item['unit'].lower())
+    if factor is None:
+        raise ValueError('Invalid resource usage unit')
+    return Decimal(str(item['quantity'])) * factor / item['resourceCount'] if factor else Decimal(1)
+
+
 def propose(data):
     snapshot = data.get("schedulingSnapshot")
     if not isinstance(snapshot, dict):
@@ -47,7 +57,7 @@ def propose(data):
     for booking in snapshot.get("assignments", []) + snapshot.get("reservations", []):
         candidates.add(max(minimum_start, instant(booking["endTime"])))
     deadline = data.get("requiredBy") or data.get("activityDueDate")
-    duration = timedelta(hours=1)
+    duration = timedelta(hours=float(max((resource_hours(i) for i in data.get('items', [])), default=Decimal(1))))
     found = None
     for start in sorted(x for x in candidates if x >= minimum_start):
         end = start + duration
@@ -55,7 +65,7 @@ def propose(data):
             continue
         workers, equipment, local_issues = [], [], []
         for item in data.get("items", []):
-            count = Decimal(str(item["quantity"]))
+            count = Decimal(str(item.get("resourceCount") or item["quantity"]))
             if item["kind"] == "Material":
                 continue
             if count != count.to_integral_value():
