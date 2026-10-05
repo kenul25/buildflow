@@ -1,0 +1,29 @@
+.landing-footer { background: #f8fafc; border-top: 1px solid #e2e8f0; padding: 0 1.5rem; }
+.landing-footer-inner { max-width: 1280px; margin: 0 auto; }
+.landing-footer-invitation { display: flex; align-items: center; justify-content: space-between; gap: 2rem; padding: 3rem 0; border-bottom: 1px solid #e2e8f0; }
+.landing-footer-invitation h2 { margin: .75rem 0 .6rem; font-size: clamp(1.7rem, 3vw, 2.25rem); line-height: 1.2; letter-spacing: -.04em; }
+.landing-footer-invitation p { margin: 0; color: #475569; line-height: 1.7; }
+.landing-footer-invitation .button { min-height: 48px; flex-shrink: 0; gap: 1rem; }
+.landing-footer-grid { display: grid; grid-template-columns: 1.7fr 1fr 1fr; gap: clamp(2rem, 5vw, 5rem); padding: 3rem 0; }
+.landing-footer-brand p { max-width: 360px; margin: 1.1rem 0; color: #475569; font-size: .9rem; line-height: 1.8; }
+.landing-footer-tagline { display: inline-flex; align-items: center; gap: .5rem; color: #2563eb; font-size: .78rem; font-weight: 600; }
+.landing-footer-links { display: flex; flex-direction: column; align-items: flex-start; }
+.landing-footer-links h3 { margin: 0 0 .9rem; font-size: .85rem; color: #0f172a; }
+.landing-footer-links a { display: inline-flex; align-items: center; min-height: 44px; color: #475569; font-size: .88rem; line-height: 1.5; }
+.landing-footer a:not(.button):hover { color: #2563eb; }
+.landing-footer a:focus-visible { outline: 2px solid #2563eb; outline-offset: 4px; border-radius: 4px; }
+.landing-footer-bottom { display: flex; align-items: center; justify-content: space-between; gap: 1rem; border-top: 1px solid #e2e8f0; padding: 1.2rem 0; }
+.landing-footer-bottom small { color: #64748b; font-size: .76rem; line-height: 1.6; }
+.landing-footer-bottom a { display: inline-flex; align-items: center; gap: .6rem; min-height: 44px; font-size: .8rem; font-weight: 600; color: #475569; }
+.landing-main [id] { scroll-margin-top: 100px; }
+@media (max-width: 760px) {
+  .landing-footer-invitation { align-items: flex-start; flex-direction: column; gap: 1.4rem; padding: 2.5rem 0; }
+  .landing-footer-grid { grid-template-columns: 1fr 1fr; gap: 2rem 1.25rem; padding: 2.5rem 0; }
+  .landing-footer-brand { grid-column: 1 / -1; }
+  .landing-footer-brand p { max-width: 440px; }
+}
+@media (max-width: 420px) {
+  .landing-footer { padding: 0 1.1rem; }
+  .landing-footer-links a { font-size: .8rem; }
+  .landing-footer-bottom { flex-direction: column; align-items: flex-start; gap: .3rem; }
+}
