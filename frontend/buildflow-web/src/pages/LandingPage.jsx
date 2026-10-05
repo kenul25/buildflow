@@ -1,19 +1,26 @@
+import './landing-hero.css'
+
 export default function LandingPage() {
   return (
     <main className="landing-main">
-      <section className="hero-section">
-        <div className="hero-copy">
-          <span className="badge">AI-powered construction operations</span>
-          <h1>Build smarter. Coordinate faster.</h1>
-          <p>Connect site teams, materials, procurement, workforce and intelligent planning in one secure platform.</p>
-          <div className="hero-actions"><a className="button button-primary" href="/register">Create account</a><a className="button button-secondary" href="#platform">Explore platform</a></div>
-          <small>Projects · Inventory · Procurement · Scheduling · Agentic AI</small>
+      <section className="landing-hero" aria-labelledby="hero-title">
+        <div className="landing-hero-copy">
+          <span className="landing-hero-badge"><span aria-hidden="true">✦</span> AI-powered construction operations</span>
+          <h1 id="hero-title">Build smarter.<br /><span>Coordinate faster.</span></h1>
+          <p>Bring your site teams, materials and schedules together. Turn everyday resource requests into clear, manager-approved plans.</p>
+          <div className="landing-hero-actions">
+            <a className="button button-primary" href="/register">Create account <span aria-hidden="true">↗</span></a>
+            <a className="button button-secondary" href="#platform">Explore platform <span aria-hidden="true">→</span></a>
+          </div>
+          <div className="landing-hero-capabilities" aria-label="Connected operations">
+            <span>Site management</span><span>Inventory & procurement</span><span>Workforce & scheduling</span>
+          </div>
         </div>
-        <div className="product-preview" aria-label="BuildFlow operations preview">
-          <div className="preview-head"><span>Site overview</span><span className="status-dot">Live</span></div>
-          <div className="metric-row"><article><small>Progress</small><strong>68%</strong></article><article><small>Pending plans</small><strong>04</strong></article></div>
-          <div className="preview-card"><span className="preview-icon amber">!</span><div><strong>Inventory review</strong><small>12 cement bags below requirement</small></div><span className="status warning">Review</span></div>
-          <div className="preview-card"><span className="preview-icon green">✓</span><div><strong>Workforce schedule</strong><small>Ground floor crew allocated</small></div><span className="status success">Ready</span></div>
+        <div className="landing-hero-visual">
+          <div className="landing-hero-photo">
+            <img src="/images/buildflow-construction-hero.webp" width="1536" height="1024" fetchPriority="high" decoding="async" alt="Two site engineers reviewing a tablet beside a building under construction" />
+            <span className="landing-hero-photo-label"><span aria-hidden="true">●</span> Built for teams on site</span>
+          </div>
         </div>
       </section>
       <section className="platform-section" id="platform">
