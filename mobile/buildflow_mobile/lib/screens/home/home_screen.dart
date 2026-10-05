@@ -183,7 +183,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           Icons.inventory_2_outlined,
           () => _open(
             'Materials',
-            InventoryScreen(service: widget.inventoryService),
+            InventoryScreen(
+              service: widget.inventoryService,
+              canManageStock: widget.authProvider.user!.roles.any(
+                (role) => [
+                  'Administrator',
+                  'ProjectManager',
+                  'InventoryOfficer',
+                ].contains(role),
+              ),
+            ),
           ),
         ),
         _more(
