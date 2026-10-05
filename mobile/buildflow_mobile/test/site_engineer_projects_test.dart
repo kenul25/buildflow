@@ -46,6 +46,32 @@ class LayoutService extends Fake implements ProjectService {
   ];
 }
 
+class SiteWorkService extends LayoutService {
+  SiteWorkService() : super('Colombo Residential Apartment Complex');
+  @override
+  Future<List<Map<String, dynamic>>> list(
+    String kind, {
+    String? parentId,
+  }) async => switch (kind) {
+    'sites' => [
+      {'id': 'site-1', 'name': 'Colombo Apartment Construction Site'},
+    ],
+    'phases' => [
+      {'id': 'phase-1', 'name': 'Site Preparation'},
+      {'id': 'phase-2', 'name': 'Foundation'},
+    ],
+    'activities' => [
+      {
+        'id': 'activity-1',
+        'name': parentId == 'phase-2' ? 'Foundation Work' : 'Site Clearing',
+        'progressPercent': 31,
+        'status': 'InProgress',
+      },
+    ],
+    _ => super.list(kind, parentId: parentId),
+  };
+}
+
 void setScreenSize(WidgetTester tester, Size size) {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = size;
@@ -91,9 +117,47 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text(title), findsOneWidget);
-    expect(tester.widget<Text>(find.text(title)).maxLines, 2);
+    expect(find.widgetWithText(AppBar, 'Project Details'), findsOneWidget);
+    expect(tester.widget<Text>(find.text(title)).maxLines, isNull);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'project details preserve phase selection and activity navigation with large text',
+    (tester) async {
+      setScreenSize(tester, const Size(320, 720));
+      final service = SiteWorkService();
+      await tester.pumpWidget(
+        MaterialApp(
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(context)
+                .copyWith(textScaler: const TextScaler.linear(1.4)),
+            child: child!,
+          ),
+          home: Scaffold(body: SiteEngineerProjectsScreen(service: service)),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(service.projectName));
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(AppBar, 'Project Details'), findsOneWidget);
+      expect(find.text(service.projectName), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.ensureVisible(find.byKey(const ValueKey('phase-phase-1')));
+      await tester.tap(find.byKey(const ValueKey('phase-phase-1')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Foundation').last);
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Foundation Work'));
+      expect(find.text('31% complete'), findsOneWidget);
+      expect(find.text('In Progress'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.tap(find.text('Foundation Work'));
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(AppBar, 'Foundation Work'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('activity fields and actions fit a narrow screen', (
     tester,

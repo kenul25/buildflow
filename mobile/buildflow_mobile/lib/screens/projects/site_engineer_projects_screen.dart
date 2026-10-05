@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../services/project_service.dart';
+import '../home/operations_navigation.dart';
 import 'resource_picker.dart';
 
 class SiteEngineerProjectsScreen extends StatefulWidget {
@@ -60,18 +61,59 @@ class _SiteEngineerProjectsScreenState
       child: RefreshIndicator(
         onRefresh: load,
         child: ListView.builder(
+          physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-          itemCount: projects.length,
+          itemCount: projects.length + 1,
           itemBuilder: (context, index) {
-            final project = projects[index];
+            if (index == 0) {
+              return Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 720),
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Your assigned projects',
+                                style: Theme.of(context).textTheme.titleMedium
+                                    ?.copyWith(fontWeight: FontWeight.w700),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '${projects.length} ${projects.length == 1 ? 'project' : 'projects'} · Select a project to view site work',
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(color: const Color(0xFF64748B)),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Refresh projects',
+                          onPressed: load,
+                          icon: const Icon(
+                            Icons.refresh_rounded,
+                            color: OperationsNavigation.blue,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }
+            final project = projects[index - 1];
             return Center(
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 720),
                 child: _NavigationCard(
                   title: project['name'] as String,
-                  subtitle:
-                      '${project['code'] ?? ''} · ${project['status'] ?? 'Planned'}',
-                  leading: const CircleAvatar(child: Icon(Icons.apartment)),
+                  subtitle: project['code'] as String? ?? 'Assigned project',
+                  status: project['status'] as String? ?? 'Planned',
+                  leading: const _ProjectIcon(),
                   onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute<void>(
@@ -97,20 +139,25 @@ class _NavigationCard extends StatelessWidget {
     required this.subtitle,
     required this.onTap,
     this.leading,
+    this.status,
+    this.progress,
   });
 
   final String title;
   final String subtitle;
   final VoidCallback onTap;
   final Widget? leading;
+  final String? status;
+  final double? progress;
 
   @override
   Widget build(BuildContext context) => Card(
+    margin: const EdgeInsets.only(bottom: 12),
     child: InkWell(
       borderRadius: BorderRadius.circular(16),
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        padding: const EdgeInsets.all(18),
         child: Row(
           children: [
             if (leading != null) ...[leading!, const SizedBox(width: 14)],
@@ -121,24 +168,95 @@ class _NavigationCard extends StatelessWidget {
                   Text(
                     title,
                     softWrap: true,
-                    style: Theme.of(context).textTheme.titleMedium,
+                    style: Theme.of(context).textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w700, height: 1.35),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 8),
                   Text(
                     subtitle,
                     softWrap: true,
-                    style: Theme.of(context).textTheme.bodySmall,
+                    style: Theme.of(context).textTheme.bodySmall
+                        ?.copyWith(color: const Color(0xFF64748B)),
                   ),
+                  if (status != null) ...[
+                    const SizedBox(height: 12),
+                    _ProjectStatus(status!),
+                  ],
+                  if (progress != null) ...[
+                    const SizedBox(height: 12),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: LinearProgressIndicator(
+                        value: progress!.clamp(0, 100) / 100,
+                        minHeight: 5,
+                        color: OperationsNavigation.blue,
+                        backgroundColor: const Color(0xFFE2E8F0),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
             const SizedBox(width: 8),
-            const Icon(Icons.chevron_right),
+            const Icon(Icons.chevron_right_rounded, color: Color(0xFF64748B)),
           ],
         ),
       ),
     ),
   );
+}
+
+class _ProjectIcon extends StatelessWidget {
+  const _ProjectIcon();
+  @override
+  Widget build(BuildContext context) => Container(
+    width: 44,
+    height: 44,
+    decoration: BoxDecoration(
+      color: OperationsNavigation.blue.withValues(alpha: .09),
+      borderRadius: BorderRadius.circular(14),
+    ),
+    child: const Icon(
+      Icons.apartment_rounded,
+      color: OperationsNavigation.blue,
+    ),
+  );
+}
+
+class _ProjectStatus extends StatelessWidget {
+  const _ProjectStatus(this.status);
+  final String status;
+  @override
+  Widget build(BuildContext context) {
+    final label = status.replaceAllMapped(
+      RegExp(r'([a-z])([A-Z])'),
+      (match) => '${match[1]} ${match[2]}',
+    );
+    final color = switch (status) {
+      'Completed' => const Color(0xFF15803D),
+      'Active' || 'InProgress' => OperationsNavigation.blue,
+      'OnHold' => const Color(0xFFB45309),
+      _ => const Color(0xFF64748B),
+    };
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: .08),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            color: color,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class SiteProjectDetailScreen extends StatefulWidget {
@@ -214,15 +332,7 @@ class _SiteProjectDetailScreenState extends State<SiteProjectDetailScreen> {
   Widget build(BuildContext context) {
     final projectName = widget.project['name'] as String;
     return Scaffold(
-      appBar: AppBar(
-        toolbarHeight: 72,
-        title: Text(
-          projectName,
-          maxLines: 2,
-          softWrap: true,
-          overflow: TextOverflow.ellipsis,
-        ),
-      ),
+      appBar: AppBar(title: const Text('Project Details')),
       body: SafeArea(
         child: loading
             ? const Center(child: CircularProgressIndicator())
@@ -247,12 +357,69 @@ class _SiteProjectDetailScreenState extends State<SiteProjectDetailScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Text(
-                          widget.project['description'] as String? ??
-                              'Assigned construction project',
-                          style: Theme.of(context).textTheme.bodyLarge,
+                        Card(
+                          margin: EdgeInsets.zero,
+                          child: Padding(
+                            padding: const EdgeInsets.all(20),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const _ProjectIcon(),
+                                const SizedBox(height: 16),
+                                Text(
+                                  projectName,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .headlineSmall
+                                      ?.copyWith(
+                                        fontWeight: FontWeight.w800,
+                                        height: 1.25,
+                                      ),
+                                ),
+                                if ((widget.project['code'] as String?)
+                                        ?.isNotEmpty ??
+                                    false) ...[
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    widget.project['code'] as String,
+                                    style: Theme.of(context).textTheme.bodySmall
+                                        ?.copyWith(
+                                          color: const Color(0xFF64748B),
+                                        ),
+                                  ),
+                                ],
+                                const SizedBox(height: 12),
+                                _ProjectStatus(
+                                  widget.project['status'] as String? ??
+                                      'Planned',
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  widget.project['description'] as String? ??
+                                      'Assigned construction project',
+                                  style: Theme.of(context).textTheme.bodyMedium
+                                      ?.copyWith(
+                                        height: 1.6,
+                                        color: const Color(0xFF64748B),
+                                      ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
                         const SizedBox(height: 24),
+                        Text(
+                          'Site work',
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Choose a site and phase to view its activities.',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: const Color(0xFF64748B)),
+                        ),
+                        const SizedBox(height: 20),
                         if (sites.isEmpty)
                           const Text('No sites in this project yet.'),
                         if (sites.isNotEmpty)
@@ -262,6 +429,10 @@ class _SiteProjectDetailScreenState extends State<SiteProjectDetailScreen> {
                             isExpanded: true,
                             decoration: const InputDecoration(
                               labelText: 'Site',
+                              prefixIcon: Icon(
+                                Icons.location_on_outlined,
+                                color: OperationsNavigation.blue,
+                              ),
                             ),
                             items: sites
                                 .map(
@@ -288,6 +459,10 @@ class _SiteProjectDetailScreenState extends State<SiteProjectDetailScreen> {
                             isExpanded: true,
                             decoration: const InputDecoration(
                               labelText: 'Phase',
+                              prefixIcon: Icon(
+                                Icons.layers_outlined,
+                                color: OperationsNavigation.blue,
+                              ),
                             ),
                             items: phases
                                 .map(
@@ -308,11 +483,23 @@ class _SiteProjectDetailScreenState extends State<SiteProjectDetailScreen> {
                           ),
                         ],
                         const SizedBox(height: 24),
-                        Text(
-                          'Activities',
-                          style: Theme.of(context).textTheme.titleLarge,
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                'Activities',
+                                style: Theme.of(context).textTheme.titleLarge
+                                    ?.copyWith(fontWeight: FontWeight.w700),
+                              ),
+                            ),
+                            Text(
+                              '${activities.length} total',
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(color: const Color(0xFF64748B)),
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 14),
                         if (activities.isEmpty)
                           const Padding(
                             padding: EdgeInsets.symmetric(vertical: 8),
@@ -322,7 +509,10 @@ class _SiteProjectDetailScreenState extends State<SiteProjectDetailScreen> {
                           (activity) => _NavigationCard(
                             title: activity['name'] as String,
                             subtitle:
-                                '${activity['progressPercent'] ?? 0}% complete · ${activity['status'] ?? 'Planned'}',
+                                '${activity['progressPercent'] ?? 0}% complete',
+                            status: activity['status'] as String? ?? 'Planned',
+                            progress: (activity['progressPercent'] as num? ?? 0)
+                                .toDouble(),
                             onTap: () async {
                               await Navigator.push(
                                 context,
