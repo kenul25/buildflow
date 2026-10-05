@@ -10,6 +10,20 @@ permissions:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_PASSWORD: integration-test-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      BUILDFLOW_TEST_CONNECTION_STRING: Host=localhost;Database=postgres;Username=postgres;Password=integration-test-only
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
@@ -17,6 +31,9 @@ jobs:
           dotnet-version: '8.0.x'
       - run: dotnet restore backend/BuildFlow.Api/BuildFlow.Api.csproj
       - run: dotnet build backend/BuildFlow.Api/BuildFlow.Api.csproj --no-restore --configuration Release
+      - run: dotnet restore tests/BuildFlow.Integration/BuildFlow.Integration.csproj
+      - run: dotnet build tests/BuildFlow.Integration/BuildFlow.Integration.csproj --no-restore --configuration Release
+      - run: dotnet tests/BuildFlow.Integration/bin/Release/net8.0/BuildFlow.Integration.dll
       # Test projects will be discovered as feature tests are added.
       - name: Run backend test projects
         shell: pwsh
@@ -55,6 +72,17 @@ jobs:
           python-version: '3.12'
       - run: python -m pip install -r requirements.txt
       - run: python -m unittest discover -s tests -v
+      - name: Test Render deployment automation
+        run: python -m unittest discover -s ../../scripts/tests -v
+
+  containers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build API deployment image
+        run: docker build --tag buildflow-api:ci backend/BuildFlow.Api
+      - name: Build planning deployment image
+        run: docker build --tag buildflow-agent:ci backend/agentic-ai
 
   mobile:
     runs-on: ubuntu-latest

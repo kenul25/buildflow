@@ -63,6 +63,11 @@ class SchedulingValidationAgent:
                     "scheduling_input_required"
                 )
 
+            if "schedulingSnapshot" in task_data["input"]:
+                from agents.resource_scheduler import propose
+                result = propose(task_data["input"])
+                return {"schemaVersion": "1.0", "task_id": task_id, "agent": self.name, "status": "Completed", "output": result, "error": None}
+
             task_input = SchedulingTaskInput.model_validate(
                 task_data["input"]
             )

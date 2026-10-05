@@ -4,5 +4,7 @@ public class ProcurementComparisonRequest
 {
     public string MaterialName { get; set; } = string.Empty;
 
-    public int RequiredQuantity { get; set; }
+    public decimal RequiredQuantity { get; set; }
+    public DateTime? RequiredByDate { get; set; }
+    public decimal? BudgetLimit { get; set; }
 }

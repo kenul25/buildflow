@@ -1,0 +1,109 @@
+name: CD
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: production-deployment
+  cancel-in-progress: false
+
+jobs:
+  verify-ci:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == github.event.repository.default_branch &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.verify.outputs.sha }}
+      deploy: ${{ steps.verify.outputs.deploy }}
+    steps:
+      - name: Verify successful CI for the current default-branch commit
+        id: verify
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const branch = context.payload.repository.default_branch;
+            const { data: head } = await github.rest.repos.getBranch({ owner, repo, branch });
+            const run = context.payload.workflow_run;
+            const sha = run ? run.head_sha : context.sha;
+            if (sha !== head.commit.sha) {
+              core.setOutput('deploy', 'false');
+              core.notice('Skipping a stale commit or a manual run outside the default branch.');
+              return;
+            }
+            if (!run) {
+              const runs = await github.paginate(github.rest.actions.listWorkflowRuns, {
+                owner, repo, workflow_id: 'ci.yml', branch, head_sha: sha, event: 'push', per_page: 100
+              });
+              if (!runs.some(r => r.head_sha === sha && r.conclusion === 'success')) {
+                core.setFailed('Run CI successfully for this default-branch commit before deploying.');
+                return;
+              }
+            }
+            core.setOutput('sha', sha);
+            core.setOutput('deploy', 'true');
+
+  deploy:
+    needs: verify-ci
+    if: needs.verify-ci.outputs.deploy == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    environment: production
+    env:
+      DEPLOY_SHA: ${{ needs.verify-ci.outputs.sha }}
+      RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+      RENDER_AGENT_SERVICE_ID: ${{ secrets.RENDER_AGENT_SERVICE_ID }}
+      RENDER_API_SERVICE_ID: ${{ secrets.RENDER_API_SERVICE_ID }}
+      API_HEALTH_URL: ${{ vars.API_HEALTH_URL }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.verify-ci.outputs.sha }}
+          persist-credentials: false
+      - name: Validate deployment configuration
+        shell: bash
+        run: |
+          for key in RENDER_API_KEY RENDER_AGENT_SERVICE_ID RENDER_API_SERVICE_ID API_HEALTH_URL VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID; do
+            if [ -z "${!key}" ]; then
+              echo "::error::Missing deployment setting: $key"
+              exit 1
+            fi
+          done
+          [[ "$API_HEALTH_URL" == https://*/health ]] || { echo "::error::API_HEALTH_URL must be an HTTPS /health URL"; exit 1; }
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Deploy planning agent and wait until live
+        run: python scripts/deploy_render.py --service-env RENDER_AGENT_SERVICE_ID --sha "$DEPLOY_SHA"
+      - name: Deploy API and wait until live
+        run: python scripts/deploy_render.py --service-env RENDER_API_SERVICE_ID --sha "$DEPLOY_SHA"
+      - name: Verify public API health
+        run: |
+          curl --fail --silent --show-error --max-time 60 "$API_HEALTH_URL" | jq -e '.status == "ok"'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+      - name: Pull production Vercel settings
+        run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+      - name: Build production frontend
+        run: vercel build --prod --token="$VERCEL_TOKEN"
+      - name: Deploy production frontend
+        run: vercel deploy --prebuilt --prod --yes --token="$VERCEL_TOKEN"
+      - name: Record deployed commit
+        run: echo "Deployed commit $DEPLOY_SHA to Render and Vercel." >> "$GITHUB_STEP_SUMMARY"

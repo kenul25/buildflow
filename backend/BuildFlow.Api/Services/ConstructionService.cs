@@ -65,15 +65,21 @@ public sealed class ConstructionService(IConstructionRepository repository, Buil
 
     public async Task<ConstructionDto> CreateAsync<T>(ConstructionWriteDto dto, Guid actorId, CancellationToken ct) where T : ConstructionRecord, new()
     {
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        await db.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(42001001)", ct);
         var entity = new T { Id = Guid.NewGuid(), CreatedById = actorId, UpdatedById = actorId };
         await ApplyAsync(entity, dto, ct);
         repository.Add(entity);
         await repository.SaveAsync(ct);
+        await tx.CommitAsync(ct);
         return Map(entity);
     }
 
     public async Task<ConstructionDto> UpdateAsync<T>(Guid id, ConstructionWriteDto dto, Guid actorId, CancellationToken ct) where T : ConstructionRecord
     {
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        await db.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(42001001)", ct);
+        await db.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(42004001)", ct);
         var entity = await repository.FindAsync<T>(id, ct) ?? throw Missing();
         if (entity.IsArchived) throw new ApiException(409, "archived", "Archived records cannot be edited.");
         var originalParent = entity switch { Site s => s.ProjectId, ConstructionPhase p => p.SiteId, ConstructionActivity a => a.PhaseId, _ => (Guid?)null };
@@ -82,12 +88,19 @@ public sealed class ConstructionService(IConstructionRepository repository, Buil
         await ApplyAsync(entity, dto, ct);
         entity.UpdatedById = actorId;
         await repository.SaveAsync(ct);
+        await tx.CommitAsync(ct);
         return Map(entity);
     }
 
     public async Task ArchiveAsync<T>(Guid id, Guid actorId, CancellationToken ct) where T : ConstructionRecord
     {
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        await db.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(42001001)", ct);
+        await db.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(42004001)", ct);
+        await db.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(42003001)", ct);
         var entity = await repository.FindAsync<T>(id, ct) ?? throw Missing();
+        if (entity is Project && (await db.Set<PurchaseRequest>().AnyAsync(x => x.ProjectId == id && (x.Status == "Pending" || x.Status == "Approved"), ct) || await db.Set<PurchaseOrder>().AnyAsync(x => x.ProjectId == id && x.Status != "Cancelled" && x.Status != "Completed", ct))) throw new ApiException(409, "active_procurement", "Finish or cancel active procurement before archiving the project.");
+        if (entity is ConstructionActivity && await db.Set<WorkSchedule>().AnyAsync(x => x.ActivityId == id && !x.IsArchived && x.Status != "Completed" && x.Status != "Cancelled", ct)) throw new ApiException(409, "active_schedule", "Finish or cancel active schedules first.");
         if (entity is Project && await db.Sites.AnyAsync(x => x.ProjectId == id && !x.IsArchived, ct) ||
             entity is Site && await db.ConstructionPhases.AnyAsync(x => x.SiteId == id && !x.IsArchived, ct) ||
             entity is ConstructionPhase && await db.ConstructionActivities.AnyAsync(x => x.PhaseId == id && !x.IsArchived, ct) ||
@@ -97,6 +110,7 @@ public sealed class ConstructionService(IConstructionRepository repository, Buil
         entity.ArchivedAt = DateTimeOffset.UtcNow;
         entity.UpdatedById = actorId;
         await repository.SaveAsync(ct);
+        await tx.CommitAsync(ct);
     }
 
     private async Task ApplyAsync(ConstructionRecord entity, ConstructionWriteDto dto, CancellationToken ct)
@@ -105,6 +119,10 @@ public sealed class ConstructionService(IConstructionRepository repository, Buil
         entity.Name = dto.Name.Trim();
         entity.Description = dto.Description?.Trim();
         if (dto.StartDate > dto.EndDate) throw Bad("Start date must not be after end date.");
+        var originalStart = entity switch { Project p => p.StartDate, ConstructionPhase p => p.StartDate, _ => (DateOnly?)null };
+        var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeBySystemTimeZoneId(DateTimeOffset.UtcNow, "Asia/Colombo").DateTime);
+        if (entity is Project or ConstructionPhase && dto.StartDate is DateOnly start && start < today && start != originalStart)
+            throw Bad("Start date must be today or later. An existing historical start date may be kept unchanged.");
         switch (entity)
         {
             case Project project:
@@ -131,6 +149,7 @@ public sealed class ConstructionService(IConstructionRepository repository, Buil
                 if (dto.ParentId is not Guid phaseId || !await db.ConstructionPhases.AnyAsync(x => x.Id == phaseId && !x.IsArchived && !x.Site.IsArchived && !x.Site.Project.IsArchived, ct)) throw Bad("Active phase is required.");
                 if (dto.Status is not null && dto.Status is not ("Planned" or "InProgress" or "OnHold" or "Completed")) throw Bad("Activity status is invalid.");
                 activity.PhaseId = phaseId; activity.Status = dto.Status ?? "Planned"; activity.DueDate = dto.DueDate;
+                if (activity.Status == "Completed" && activity.ProgressPercent != 100 || activity.Status == "Planned" && activity.ProgressPercent > 0) throw Bad("Status must agree with recorded progress. Submit a progress update or correction first.");
                 break;
         }
     }

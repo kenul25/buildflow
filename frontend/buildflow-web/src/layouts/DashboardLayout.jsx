@@ -8,10 +8,15 @@ const navigationByRole = {
     { label: 'Phases', to: '/construction/phases' },
     { label: 'Activities', to: '/construction/activities' },
     { label: 'Inventory', to: '/inventory' },
-    'Scheduling',
-    'AI Workflows',
-    'Approvals',
-    'Reports',
+    { label: 'Scheduling', to: '/scheduling' },
+    { label: 'Plans & approvals', to: '/workflows' },
+
+    { label: 'Purchase requests', to: '/purchase-requests' },
+    { label: 'Purchase orders', to: '/purchase-orders' },
+    { label: 'Deliveries', to: '/deliveries' },
+    { label: 'Suppliers', to: '/suppliers' },
+    { label: 'Supplier materials', to: '/supplier-materials' },
+    { label: 'Quotations', to: '/quotations' },
   ],
 
   InventoryOfficer: [
@@ -42,15 +47,17 @@ const navigationByRole = {
     { label: 'Purchase Requests', to: '/purchase-requests' },
     { label: 'Purchase Orders', to: '/purchase-orders' },
     { label: 'Deliveries', to: '/deliveries' },
+    { label: 'Scheduling', to: '/scheduling' },
+    { label: 'Plans & approvals', to: '/workflows' },
     'System Settings',
     'Audit',
   ],
 
   SiteEngineer: [
     { label: 'Projects', to: '/construction/projects' },
-    'Requests',
-    'Progress',
-    'Approved Plans',
+    { label: 'Requests & progress', to: '/construction/activities' },
+    { label: 'Plans & approvals', to: '/workflows' },
+    { label: 'Assignments & equipment', to: '/scheduling' },
   ],
 }
 

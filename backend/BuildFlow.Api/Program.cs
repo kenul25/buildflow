@@ -66,6 +66,10 @@ builder.Services.AddScoped<IConstructionService, ConstructionService>();
 builder.Services.AddScoped<IConstructionOperationsService, ConstructionOperationsService>();
 builder.Services.AddScoped<IInventoryService, InventoryService>();
 builder.Services.AddScoped<InventoryAnalysisAgent>();
+builder.Services.AddScoped<SchedulingService>();
+builder.Services.AddScoped<ProcurementService>();
+builder.Services.AddScoped<InventoryService>();
+builder.Services.AddScoped<WorkflowExecutionService>();
 
 builder.Services.AddHttpClient<IPlanningClient, PlanningClient>(client =>
 {
@@ -141,9 +145,10 @@ builder.Services
         };
     });
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options => options.FallbackPolicy = new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
+builder.Services.AddHttpContextAccessor();
 
-builder.Services.AddControllers();
+builder.Services.AddControllers(options => options.Filters.Add<ProcurementWriteFilter>());
 
 builder.Services.AddEndpointsApiExplorer();
 
@@ -196,6 +201,7 @@ builder.Services.AddCors(options =>
             policy
                 .WithOrigins(allowedOrigins)
                 .AllowAnyHeader()
+                .WithExposedHeaders("X-Total-Count")
                 .AllowAnyMethod();
         }
     }));
@@ -232,7 +238,7 @@ app.MapControllers();
 
 app.MapGet(
     "/health",
-    () => Results.Ok(new { status = "ok" }));
+    () => Results.Ok(new { status = "ok" })).AllowAnonymous();
 
 app.Run();
 

@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 from agents.planning_agent import PlanningAgent, PlanningFailure
-from agents.gemini_gateway import GeminiConfigurationError, GeminiGateway
+from agents.gemini_gateway import GeminiConfigurationError, GeminiGateway, gemini_response_schema
 from main import app, load_local_env
 from schemas.planning_schema import PlanningRequest, ProposedPlan
 from workflows.buildflow_workflow import apply_result, ready_tasks
@@ -237,6 +237,35 @@ class FastApiContractTests(unittest.TestCase):
 
 
 class GeminiGatewayTests(unittest.IsolatedAsyncioTestCase):
+    async def test_real_sdk_serializes_schema_and_parses_approved_proposal(self):
+        import httpx
+        from google import genai
+        from google.genai import types
+
+        payload = request()
+        expected = proposal(payload)
+        captured = []
+
+        def respond(http_request):
+            captured.append(json.loads(http_request.content))
+            return httpx.Response(200, json={
+                "candidates": [{"content": {"role": "model", "parts": [{"text": json.dumps(expected)}]}, "finishReason": "STOP"}]
+            })
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as transport:
+            client = genai.Client(api_key="test-only-key", http_options=types.HttpOptions(httpx_async_client=transport))
+            try:
+                with patch.dict(os.environ, {"GEMINI_API_KEY": "test-only-key", "GEMINI_MODEL": "gemini-3.5-flash-lite"}):
+                    with patch("google.genai.Client", return_value=client):
+                        result = await GeminiGateway().generate(PlanningRequest.model_validate(payload))
+                self.assertEqual(result, expected)
+                self.assertEqual(len(captured), 1)
+                schema = captured[0]["generationConfig"]["responseSchema"]
+                self.assertEqual(schema["properties"]["approvalRequired"]["type"], "BOOLEAN")
+                self.assertNotIn("additionalProperties", json.dumps(schema))
+            finally:
+                client.close()
+
     async def test_gateway_uses_structured_schema_and_no_tools(self):
         payload = request()
         expected = proposal(payload)
@@ -260,13 +289,23 @@ class GeminiGatewayTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result, expected)
         self.assertEqual(captured["model"], "gemini-3.5-flash-lite")
         self.assertEqual(captured["config"].tools, [])
-        self.assertIs(captured["config"].response_schema, ProposedPlan)
+        self.assertEqual(captured["config"].response_schema, gemini_response_schema())
         self.assertTrue(captured["closed"])
 
     async def test_missing_key_fails_before_sdk_call(self):
         with patch.dict(os.environ, {"GEMINI_MODEL": "gemini-3.5-flash-lite"}, clear=True):
             with self.assertRaises(GeminiConfigurationError):
                 await GeminiGateway().generate(PlanningRequest.model_validate(request()))
+
+    async def test_approval_cannot_be_disabled_or_coerced(self):
+        payload = request()
+        for approval in (False, 0, 1, "true", "false"):
+            with self.subTest(approval=approval):
+                candidate = {**proposal(payload), "approvalRequired": approval}
+                with self.assertRaises(PlanningFailure) as caught:
+                    await planner(candidate).aplan(payload)
+                self.assertEqual(caught.exception.code, "proposal_schema_invalid")
+                self.assertIsNone(caught.exception.summary.generatedPlan)
 
 
 class LocalConfigurationTests(unittest.TestCase):

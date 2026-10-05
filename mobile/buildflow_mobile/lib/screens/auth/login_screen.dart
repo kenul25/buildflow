@@ -40,7 +40,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) => AuthShell(
     title: 'Welcome back',
-    subtitle: 'Sign in to manage today’s site operations.',
+    subtitle: 'Sign in to your BuildFlow workspace.',
     child: Form(
       key: _formKey,
       child: Column(
@@ -53,9 +53,11 @@ class _LoginScreenState extends State<LoginScreen> {
           TextFormField(
             controller: _emailController,
             keyboardType: TextInputType.emailAddress,
+            textInputAction: TextInputAction.next,
             autofillHints: const [AutofillHints.email],
             decoration: const InputDecoration(
               labelText: 'Email address',
+              hintText: 'you@company.com',
               prefixIcon: Icon(Icons.mail_outline),
             ),
             validator: (value) =>
@@ -68,9 +70,14 @@ class _LoginScreenState extends State<LoginScreen> {
           TextFormField(
             controller: _passwordController,
             obscureText: !_showPassword,
+            textInputAction: TextInputAction.done,
+            onFieldSubmitted: (_) {
+              if (!_submitting) _submit();
+            },
             autofillHints: const [AutofillHints.password],
             decoration: InputDecoration(
               labelText: 'Password',
+              hintText: 'Enter your password',
               prefixIcon: const Icon(Icons.lock_outline),
               suffixIcon: IconButton(
                 tooltip: _showPassword ? 'Hide password' : 'Show password',

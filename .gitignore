@@ -12,6 +12,7 @@ backend/BuildFlow.Api/uploads/
 # React / Node
 **/node_modules/
 **/dist/
+**/.vercel/
 
 # Flutter / Dart
 **/.dart_tool/
@@ -39,6 +40,7 @@ Thumbs.db
 
 # Local alternate .NET build output
 **/bin-member01/
+.artifacts/
 
 # BuildFlow API tests stay local on this feature branch
 backend/BuildFlow.Api.Tests/

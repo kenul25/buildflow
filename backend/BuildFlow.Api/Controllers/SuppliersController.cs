@@ -38,11 +38,14 @@ public class SuppliersController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetSuppliers()
+    public async Task<IActionResult> GetSuppliers(string? search = null, string sort = "name", bool desc = false, int page = 1, int pageSize = 100)
     {
-        var suppliers = await _context.Suppliers
-            .Where(s => s.IsActive)
-            .ToListAsync();
+        if (page < 1 || pageSize is < 1 or > 100) return BadRequest(new { message = "Invalid pagination." });
+        var query = _context.Suppliers.AsNoTracking().Where(s => s.IsActive);
+        if (!string.IsNullOrWhiteSpace(search)) query = query.Where(s => EF.Functions.ILike(s.Name, $"%{search.Trim()}%"));
+        Response.Headers["X-Total-Count"] = (await query.CountAsync()).ToString();
+        var ordered = sort.ToLowerInvariant() == "updatedat" ? (desc ? query.OrderByDescending(x => x.UpdatedAt) : query.OrderBy(x => x.UpdatedAt)) : (desc ? query.OrderByDescending(x => x.Name) : query.OrderBy(x => x.Name));
+        var suppliers = await ordered.ThenBy(x => x.Id).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
 
         return Ok(suppliers);
     }

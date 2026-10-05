@@ -51,6 +51,8 @@ public sealed class ConstructionActivity : ConstructionRecord
 
 public sealed class ProgressUpdate : BaseEntity
 {
+    public bool IsArchived { get; set; }
+    public Guid? CorrectionOfId { get; set; }
     public Guid ActivityId { get; set; }
     public ConstructionActivity Activity { get; set; } = null!;
     public int ProgressPercent { get; set; }
@@ -61,6 +63,8 @@ public sealed class ProgressUpdate : BaseEntity
 
 public sealed class SitePhoto : BaseEntity
 {
+    public string? Caption { get; set; }
+    public bool IsArchived { get; set; }
     public Guid ActivityId { get; set; }
     public ConstructionActivity Activity { get; set; } = null!;
     public string StorageName { get; set; } = "";
@@ -72,6 +76,7 @@ public sealed class SitePhoto : BaseEntity
 
 public sealed class ResourceRequest : BaseEntity
 {
+    public string Status { get; set; } = "Draft";
     public Guid ProjectId { get; set; }
     public Project Project { get; set; } = null!;
     public Guid SiteId { get; set; }
@@ -88,6 +93,7 @@ public sealed class ResourceRequest : BaseEntity
 
 public sealed class ResourceRequestItem : BaseEntity
 {
+    public int? ResourceCount { get; set; }
     public Guid ResourceRequestId { get; set; }
     public ResourceRequest ResourceRequest { get; set; } = null!;
     public string Kind { get; set; } = "Material";

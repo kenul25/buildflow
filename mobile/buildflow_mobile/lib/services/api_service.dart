@@ -49,16 +49,40 @@ class ApiService {
 
   Future<dynamic> upload(String path, String filePath) async {
     try {
-      final token = await _storage.readAccessToken();
-      final request = http.MultipartRequest('POST', Uri.parse('${AppConfig.apiBaseUrl}$path'));
-      if (token != null) request.headers['Authorization'] = 'Bearer $token';
-      final extension = filePath.toLowerCase().split('.').last;
-      final subtype = extension == 'png' ? 'png' : extension == 'webp' ? 'webp' : 'jpeg';
-      request.files.add(await http.MultipartFile.fromPath('file', filePath, contentType: MediaType('image', subtype)));
-      final response = await http.Response.fromStream(await _client.send(request).timeout(const Duration(seconds: 30)));
+      Future<http.Response> sendUpload() async {
+        final token = await _storage.readAccessToken();
+        final request = http.MultipartRequest(
+          'POST',
+          Uri.parse('${AppConfig.apiBaseUrl}$path'),
+        );
+        if (token != null) request.headers['Authorization'] = 'Bearer $token';
+        final extension = filePath.toLowerCase().split('.').last;
+        final subtype = extension == 'png'
+            ? 'png'
+            : extension == 'webp'
+            ? 'webp'
+            : 'jpeg';
+        request.files.add(
+          await http.MultipartFile.fromPath(
+            'file',
+            filePath,
+            contentType: MediaType('image', subtype),
+          ),
+        );
+        return await http.Response.fromStream(
+          await _client.send(request).timeout(const Duration(seconds: 30)),
+        );
+      }
+
+      var response = await sendUpload();
+      if (response.statusCode == 401 && await _refresh()) {
+        response = await sendUpload();
+      }
       return _decode(response);
     } on SocketException {
-      throw const ApiException('No internet connection. Check your network and try again.');
+      throw const ApiException(
+        'No internet connection. Check your network and try again.',
+      );
     } on TimeoutException {
       throw const ApiException('Photo upload timed out. Please try again.');
     }
@@ -81,7 +105,13 @@ class ApiService {
     if (body != null) request.body = jsonEncode(body);
     final streamed = await _client
         .send(request)
-        .timeout(const Duration(seconds: 15));
+        .timeout(
+          Duration(
+            seconds: path.endsWith('/planning') || path.endsWith('/execute')
+                ? 150
+                : 15,
+          ),
+        );
     return http.Response.fromStream(streamed);
   }
 
@@ -120,7 +150,10 @@ class ApiService {
         : jsonDecode(response.body);
     if (response.statusCode >= 200 && response.statusCode < 300) return payload;
     final message = payload is Map<String, dynamic>
-        ? payload['detail'] as String? ?? 'The request could not be completed.'
+        ? payload['detail'] as String? ??
+              payload['message'] as String? ??
+              payload['error'] as String? ??
+              'The request could not be completed.'
         : 'The request could not be completed.';
     throw ApiException(message, statusCode: response.statusCode);
   }

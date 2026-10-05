@@ -42,5 +42,5 @@ api.interceptors.response.use(
 
 export function apiErrorMessage(error) {
   if (!error.response) return 'Unable to reach the server. Check your connection and try again.'
-  return error.response.data?.detail ?? 'The request could not be completed.'
+  return error.response.data?.detail ?? error.response.data?.message ?? error.response.data?.error ?? 'The request could not be completed.'
 }

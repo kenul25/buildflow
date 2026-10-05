@@ -16,6 +16,10 @@ public sealed class ExceptionHandlingMiddleware(RequestDelegate next, ILogger<Ex
         {
             await WriteProblemAsync(context, exception.StatusCode, exception.Code, exception.Message);
         }
+        catch (Microsoft.EntityFrameworkCore.DbUpdateException exception) when (exception.InnerException is Npgsql.PostgresException { SqlState: "23505" or "23503" or "23514" })
+        {
+            await WriteProblemAsync(context, 409, "data_conflict", "The change conflicts with existing records or quantity rules. Refresh and review dependent records.");
+        }
         catch (Exception exception)
         {
             logger.LogError(exception, "Unhandled request failure");

@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest'
 import React from 'react'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import AdminDashboardPage from './AdminDashboardPage.jsx'
+import AdminDashboardPage from '../pages/AdminDashboardPage.jsx'
 import { adminService } from '../services/adminService.js'
 
 vi.mock('../services/adminService.js', () => ({

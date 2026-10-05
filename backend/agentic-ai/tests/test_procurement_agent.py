@@ -35,7 +35,7 @@ class ProcurementAgentTests(unittest.TestCase):
             totalPrice=Decimal(str(quantity)) * Decimal(str(unit_price)),
         )
 
-    def test_selects_lowest_total_price(self):
+    def test_selects_lowest_cost_for_requested_quantity(self):
         task_input = ProcurementInput(
             workflowId="workflow-123",
             materialName="Cement",
@@ -68,12 +68,13 @@ class ProcurementAgentTests(unittest.TestCase):
         self.assertEqual(result["quotationCount"], 2)
         self.assertEqual(
             result["recommendedQuotation"]["quotationId"],
-            1,
+            2,
         )
         self.assertEqual(
             result["recommendedQuotation"]["supplierName"],
-            "ABC Construction Suppliers",
+            "Lanka Building Materials",
         )
+        self.assertEqual(result["recommendedQuotation"]["totalPrice"], 110000)
         self.assertEqual(result["sideEffects"], [])
         self.assertTrue(result["approvalRequired"])
 

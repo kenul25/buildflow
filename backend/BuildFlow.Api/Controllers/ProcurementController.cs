@@ -2,11 +2,13 @@ using BuildFlow.Api.Data;
 using BuildFlow.Api.DTOs;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authorization;
 
 namespace BuildFlow.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize(Roles = "ProcurementOfficer,ProjectManager,Administrator")]
 public class ProcurementController : ControllerBase
 {
     private readonly AppDbContext _context;
@@ -43,8 +45,12 @@ public class ProcurementController : ControllerBase
             .Where(q =>
                 q.MaterialName.ToLower() == materialName &&
                 q.Quantity >= request.RequiredQuantity &&
-                q.Supplier.IsActive)
-            .OrderBy(q => q.TotalPrice)
+                q.Supplier.IsActive && q.IsActive && q.ValidUntil != null && q.ValidUntil >= DateTime.UtcNow && q.DeliveryDate >= DateTime.UtcNow &&
+                _context.Set<BuildFlow.Api.Models.Material>().Any(m => m.Id == q.MaterialId && !m.IsArchived && m.Name == q.MaterialName && m.Unit == q.Unit) &&
+                _context.SupplierMaterials.Any(s => s.MaterialId == q.MaterialId && s.SupplierId == q.SupplierId && s.IsActive && s.AvailableQuantity - _context.PurchaseOrders.Where(o => o.SupplierId == s.SupplierId && o.MaterialId == s.MaterialId && o.Status != "Cancelled" && o.Status != "Completed").Select(o => o.Quantity - _context.Deliveries.Where(d => d.PurchaseOrderId == o.Id && (d.Status == "Received" || d.Status == "Completed")).Sum(d => d.Quantity)).Sum() >= request.RequiredQuantity) &&
+                (request.RequiredByDate == null || q.DeliveryDate.Date <= request.RequiredByDate.Value.Date) &&
+                (request.BudgetLimit == null || q.UnitPrice * request.RequiredQuantity <= request.BudgetLimit))
+            .OrderBy(q => q.UnitPrice * request.RequiredQuantity)
             .ThenBy(q => q.DeliveryDate)
             .ThenBy(q => q.Id)
             .Select(q => new
@@ -56,7 +62,7 @@ public class ProcurementController : ControllerBase
                 quantity = q.Quantity,
                 unitPrice = q.UnitPrice,
                 deliveryDate = q.DeliveryDate,
-                totalPrice = q.TotalPrice
+                totalPrice = q.UnitPrice * request.RequiredQuantity
             })
             .ToListAsync();
 

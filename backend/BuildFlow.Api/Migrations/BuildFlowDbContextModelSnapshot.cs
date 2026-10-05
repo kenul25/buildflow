@@ -174,6 +174,216 @@ namespace BuildFlow.Api.Migrations
                     b.ToTable("ConstructionPhases");
                 });
 
+            modelBuilder.Entity("BuildFlow.Api.Models.Delivery", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("CreatedById")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("DeliveryDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("EvidenceUrl")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("MaterialName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("PurchaseOrderId")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("Quantity")
+                        .HasColumnType("numeric");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset?>("StockReceivedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedById")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PurchaseOrderId");
+
+                    b.ToTable("Deliveries", null, t =>
+                        {
+                            t.ExcludeFromMigrations();
+                        });
+                });
+
+            modelBuilder.Entity("BuildFlow.Api.Models.Equipment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("CreatedById")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedById")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("Equipment");
+                });
+
+            modelBuilder.Entity("BuildFlow.Api.Models.EquipmentRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ActivityId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("CreatedById")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("EquipmentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedById")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActivityId");
+
+                    b.HasIndex("EquipmentId");
+
+                    b.ToTable("EquipmentRequest");
+                });
+
+            modelBuilder.Entity("BuildFlow.Api.Models.EquipmentReservation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("CreatedById")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("EndTime")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("EquipmentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<Guid>("ScheduleId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("StartTime")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedById")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EquipmentId");
+
+                    b.HasIndex("ScheduleId");
+
+                    b.ToTable("EquipmentReservation");
+                });
+
             modelBuilder.Entity("BuildFlow.Api.Models.InventoryReservation", b =>
                 {
                     b.Property<Guid>("Id")
@@ -199,6 +409,9 @@ namespace BuildFlow.Api.Migrations
                     b.Property<DateTimeOffset?>("ReleasedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid?>("ScheduleId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(32)
@@ -208,6 +421,10 @@ namespace BuildFlow.Api.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ProjectId");
+
+                    b.HasIndex("ScheduleId");
 
                     b.HasIndex("MaterialId", "Status");
 
@@ -231,6 +448,9 @@ namespace BuildFlow.Api.Migrations
                     b.Property<decimal>("CurrentStock")
                         .HasPrecision(18, 3)
                         .HasColumnType("numeric(18,3)");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("boolean");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -269,6 +489,22 @@ namespace BuildFlow.Api.Migrations
 
                             t.HasCheckConstraint("CK_Materials_ReservedStockWithinCurrent", "\"ReservedStock\" <= \"CurrentStock\"");
                         });
+                });
+
+            modelBuilder.Entity("BuildFlow.Api.Models.NotificationRead", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("NotificationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("ReadAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("UserId", "NotificationId");
+
+                    b.ToTable("NotificationReads");
                 });
 
             modelBuilder.Entity("BuildFlow.Api.Models.PlanningWorkflow", b =>
@@ -320,8 +556,14 @@ namespace BuildFlow.Api.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
 
+                    b.Property<Guid?>("CorrectionOfId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("boolean");
 
                     b.Property<int>("ProgressPercent")
                         .HasColumnType("integer");
@@ -340,6 +582,8 @@ namespace BuildFlow.Api.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("ActivityId");
+
+                    b.HasIndex("CorrectionOfId");
 
                     b.ToTable("ProgressUpdates");
                 });
@@ -404,6 +648,144 @@ namespace BuildFlow.Api.Migrations
                         .IsUnique();
 
                     b.ToTable("Projects");
+                });
+
+            modelBuilder.Entity("BuildFlow.Api.Models.PurchaseOrder", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("CreatedById")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("DeliveryDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("MaterialId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("MaterialName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("ProjectId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("PurchaseRequestId")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("Quantity")
+                        .HasColumnType("numeric");
+
+                    b.Property<int?>("QuotationId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("SupplierId")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("TotalCost")
+                        .HasColumnType("numeric");
+
+                    b.Property<string>("Unit")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<decimal>("UnitPrice")
+                        .HasColumnType("numeric");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedById")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PurchaseRequestId");
+
+                    b.HasIndex("QuotationId");
+
+                    b.HasIndex("SupplierId");
+
+                    b.ToTable("PurchaseOrders", null, t =>
+                        {
+                            t.ExcludeFromMigrations();
+                        });
+                });
+
+            modelBuilder.Entity("BuildFlow.Api.Models.PurchaseRequest", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal?>("BudgetLimit")
+                        .HasColumnType("numeric");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("CreatedById")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("EstimatedTotalCost")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal>("EstimatedUnitPrice")
+                        .HasColumnType("numeric");
+
+                    b.Property<Guid?>("MaterialId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("MaterialName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("ProjectId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Quantity")
+                        .HasColumnType("numeric");
+
+                    b.Property<DateTime>("RequiredByDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Unit")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedById")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MaterialId");
+
+                    b.HasIndex("ProjectId");
+
+                    b.ToTable("PurchaseRequests", null, t =>
+                        {
+                            t.ExcludeFromMigrations();
+                        });
                 });
 
             modelBuilder.Entity("BuildFlow.Api.Models.RefreshToken", b =>
@@ -485,6 +867,10 @@ namespace BuildFlow.Api.Migrations
                     b.Property<Guid>("SiteId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<Guid>("SubmittedById")
                         .HasColumnType("uuid");
 
@@ -524,6 +910,9 @@ namespace BuildFlow.Api.Migrations
                     b.Property<decimal>("Quantity")
                         .HasPrecision(18, 3)
                         .HasColumnType("numeric(18,3)");
+
+                    b.Property<int?>("ResourceCount")
+                        .HasColumnType("integer");
 
                     b.Property<Guid>("ResourceRequestId")
                         .HasColumnType("uuid");
@@ -615,6 +1004,52 @@ namespace BuildFlow.Api.Migrations
                         });
                 });
 
+            modelBuilder.Entity("BuildFlow.Api.Models.Shift", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("CreatedById")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("EndTime")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<DateTimeOffset>("StartTime")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedById")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("WorkerId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("WorkerId");
+
+                    b.ToTable("Shift");
+                });
+
             modelBuilder.Entity("BuildFlow.Api.Models.Site", b =>
                 {
                     b.Property<Guid>("Id")
@@ -663,6 +1098,59 @@ namespace BuildFlow.Api.Migrations
                     b.ToTable("Sites");
                 });
 
+            modelBuilder.Entity("BuildFlow.Api.Models.SiteIssue", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ActivityId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("CreatedById")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("EquipmentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("Severity")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedById")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActivityId");
+
+                    b.HasIndex("EquipmentId");
+
+                    b.ToTable("SiteIssue");
+                });
+
             modelBuilder.Entity("BuildFlow.Api.Models.SitePhoto", b =>
                 {
                     b.Property<Guid>("Id")
@@ -672,6 +1160,9 @@ namespace BuildFlow.Api.Migrations
                     b.Property<Guid>("ActivityId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("Caption")
+                        .HasColumnType("text");
+
                     b.Property<string>("ContentType")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -679,6 +1170,9 @@ namespace BuildFlow.Api.Migrations
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("boolean");
 
                     b.Property<long>("Length")
                         .HasColumnType("bigint");
@@ -706,6 +1200,41 @@ namespace BuildFlow.Api.Migrations
                     b.ToTable("SitePhotos");
                 });
 
+            modelBuilder.Entity("BuildFlow.Api.Models.Skill", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("CreatedById")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedById")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Skill");
+                });
+
             modelBuilder.Entity("BuildFlow.Api.Models.StockMovement", b =>
                 {
                     b.Property<Guid>("Id")
@@ -729,6 +1258,12 @@ namespace BuildFlow.Api.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<Guid?>("ReversalOfId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("ReversedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<decimal>("StockAfter")
                         .HasPrecision(18, 3)
                         .HasColumnType("numeric(18,3)");
@@ -743,9 +1278,167 @@ namespace BuildFlow.Api.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ReversalOfId");
+
                     b.HasIndex("MaterialId", "CreatedAt");
 
                     b.ToTable("StockMovements", (string)null);
+                });
+
+            modelBuilder.Entity("BuildFlow.Api.Models.Supplier", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Address")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("ContactPerson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("CreatedById")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Phone")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedById")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Suppliers", null, t =>
+                        {
+                            t.ExcludeFromMigrations();
+                        });
+                });
+
+            modelBuilder.Entity("BuildFlow.Api.Models.SupplierMaterial", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("AvailableQuantity")
+                        .HasColumnType("numeric");
+
+                    b.Property<Guid?>("CreatedById")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("LeadTimeDays")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("MaterialId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("SupplierId")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("UnitPrice")
+                        .HasColumnType("numeric");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedById")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MaterialId");
+
+                    b.HasIndex("SupplierId");
+
+                    b.ToTable("SupplierMaterials", null, t =>
+                        {
+                            t.ExcludeFromMigrations();
+                        });
+                });
+
+            modelBuilder.Entity("BuildFlow.Api.Models.SupplierQuotation", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<Guid?>("CreatedById")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("DeliveryDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid?>("MaterialId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("MaterialName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<decimal>("Quantity")
+                        .HasColumnType("numeric");
+
+                    b.Property<int>("SupplierId")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("TotalPrice")
+                        .HasColumnType("numeric");
+
+                    b.Property<string>("Unit")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<decimal>("UnitPrice")
+                        .HasColumnType("numeric");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedById")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("ValidUntil")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MaterialId");
+
+                    b.HasIndex("SupplierId");
+
+                    b.ToTable("SupplierQuotations", null, t =>
+                        {
+                            t.ExcludeFromMigrations();
+                        });
                 });
 
             modelBuilder.Entity("BuildFlow.Api.Models.UserRole", b =>
@@ -792,6 +1485,221 @@ namespace BuildFlow.Api.Migrations
                     b.ToTable("Warehouses", (string)null);
                 });
 
+            modelBuilder.Entity("BuildFlow.Api.Models.WorkSchedule", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ActivityId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("CreatedById")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("DependencyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("EndTime")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<DateTimeOffset>("StartTime")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedById")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("WorkflowId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActivityId");
+
+                    b.HasIndex("DependencyId");
+
+                    b.HasIndex("WorkflowId")
+                        .IsUnique();
+
+                    b.ToTable("WorkSchedules", (string)null);
+                });
+
+            modelBuilder.Entity("BuildFlow.Api.Models.Worker", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("CreatedById")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("Phone")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedById")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("Worker");
+                });
+
+            modelBuilder.Entity("BuildFlow.Api.Models.WorkerAssignment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("CreatedById")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("EndTime")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<Guid?>("RequiredSkillId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ScheduleId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("StartTime")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedById")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("WorkerId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RequiredSkillId");
+
+                    b.HasIndex("ScheduleId");
+
+                    b.HasIndex("WorkerId");
+
+                    b.ToTable("WorkerAssignment");
+                });
+
+            modelBuilder.Entity("BuildFlow.Api.Models.WorkerSkill", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("CreatedById")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<Guid>("SkillId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UpdatedById")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("WorkerId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SkillId");
+
+                    b.HasIndex("WorkerId", "SkillId")
+                        .IsUnique()
+                        .HasFilter("\"IsArchived\" = false");
+
+                    b.ToTable("WorkerSkill");
+                });
+
             modelBuilder.Entity("BuildFlow.Api.Models.ConstructionActivity", b =>
                 {
                     b.HasOne("BuildFlow.Api.Models.ConstructionPhase", "Phase")
@@ -814,6 +1722,45 @@ namespace BuildFlow.Api.Migrations
                     b.Navigation("Site");
                 });
 
+            modelBuilder.Entity("BuildFlow.Api.Models.Delivery", b =>
+                {
+                    b.HasOne("BuildFlow.Api.Models.PurchaseOrder", null)
+                        .WithMany()
+                        .HasForeignKey("PurchaseOrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BuildFlow.Api.Models.EquipmentRequest", b =>
+                {
+                    b.HasOne("BuildFlow.Api.Models.ConstructionActivity", null)
+                        .WithMany()
+                        .HasForeignKey("ActivityId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("BuildFlow.Api.Models.Equipment", null)
+                        .WithMany()
+                        .HasForeignKey("EquipmentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BuildFlow.Api.Models.EquipmentReservation", b =>
+                {
+                    b.HasOne("BuildFlow.Api.Models.Equipment", null)
+                        .WithMany()
+                        .HasForeignKey("EquipmentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("BuildFlow.Api.Models.WorkSchedule", null)
+                        .WithMany()
+                        .HasForeignKey("ScheduleId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("BuildFlow.Api.Models.InventoryReservation", b =>
                 {
                     b.HasOne("BuildFlow.Api.Models.Material", "Material")
@@ -821,6 +1768,16 @@ namespace BuildFlow.Api.Migrations
                         .HasForeignKey("MaterialId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("BuildFlow.Api.Models.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("BuildFlow.Api.Models.WorkSchedule", null)
+                        .WithMany()
+                        .HasForeignKey("ScheduleId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Material");
                 });
@@ -834,6 +1791,15 @@ namespace BuildFlow.Api.Migrations
                         .IsRequired();
 
                     b.Navigation("Warehouse");
+                });
+
+            modelBuilder.Entity("BuildFlow.Api.Models.NotificationRead", b =>
+                {
+                    b.HasOne("BuildFlow.Api.Models.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("BuildFlow.Api.Models.PlanningWorkflow", b =>
@@ -855,6 +1821,11 @@ namespace BuildFlow.Api.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("BuildFlow.Api.Models.ProgressUpdate", null)
+                        .WithMany()
+                        .HasForeignKey("CorrectionOfId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.Navigation("Activity");
                 });
 
@@ -866,6 +1837,39 @@ namespace BuildFlow.Api.Migrations
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("AssignedEngineer");
+                });
+
+            modelBuilder.Entity("BuildFlow.Api.Models.PurchaseOrder", b =>
+                {
+                    b.HasOne("BuildFlow.Api.Models.PurchaseRequest", null)
+                        .WithMany()
+                        .HasForeignKey("PurchaseRequestId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("BuildFlow.Api.Models.SupplierQuotation", null)
+                        .WithMany()
+                        .HasForeignKey("QuotationId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("BuildFlow.Api.Models.Supplier", null)
+                        .WithMany()
+                        .HasForeignKey("SupplierId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BuildFlow.Api.Models.PurchaseRequest", b =>
+                {
+                    b.HasOne("BuildFlow.Api.Models.Material", null)
+                        .WithMany()
+                        .HasForeignKey("MaterialId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("BuildFlow.Api.Models.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("BuildFlow.Api.Models.RefreshToken", b =>
@@ -917,6 +1921,15 @@ namespace BuildFlow.Api.Migrations
                     b.Navigation("ResourceRequest");
                 });
 
+            modelBuilder.Entity("BuildFlow.Api.Models.Shift", b =>
+                {
+                    b.HasOne("BuildFlow.Api.Models.Worker", null)
+                        .WithMany()
+                        .HasForeignKey("WorkerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("BuildFlow.Api.Models.Site", b =>
                 {
                     b.HasOne("BuildFlow.Api.Models.Project", "Project")
@@ -926,6 +1939,20 @@ namespace BuildFlow.Api.Migrations
                         .IsRequired();
 
                     b.Navigation("Project");
+                });
+
+            modelBuilder.Entity("BuildFlow.Api.Models.SiteIssue", b =>
+                {
+                    b.HasOne("BuildFlow.Api.Models.ConstructionActivity", null)
+                        .WithMany()
+                        .HasForeignKey("ActivityId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("BuildFlow.Api.Models.Equipment", null)
+                        .WithMany()
+                        .HasForeignKey("EquipmentId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("BuildFlow.Api.Models.SitePhoto", b =>
@@ -947,7 +1974,45 @@ namespace BuildFlow.Api.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("BuildFlow.Api.Models.StockMovement", null)
+                        .WithMany()
+                        .HasForeignKey("ReversalOfId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.Navigation("Material");
+                });
+
+            modelBuilder.Entity("BuildFlow.Api.Models.SupplierMaterial", b =>
+                {
+                    b.HasOne("BuildFlow.Api.Models.Material", null)
+                        .WithMany()
+                        .HasForeignKey("MaterialId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("BuildFlow.Api.Models.Supplier", "Supplier")
+                        .WithMany()
+                        .HasForeignKey("SupplierId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Supplier");
+                });
+
+            modelBuilder.Entity("BuildFlow.Api.Models.SupplierQuotation", b =>
+                {
+                    b.HasOne("BuildFlow.Api.Models.Material", null)
+                        .WithMany()
+                        .HasForeignKey("MaterialId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("BuildFlow.Api.Models.Supplier", "Supplier")
+                        .WithMany()
+                        .HasForeignKey("SupplierId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Supplier");
                 });
 
             modelBuilder.Entity("BuildFlow.Api.Models.UserRole", b =>
@@ -967,6 +2032,68 @@ namespace BuildFlow.Api.Migrations
                     b.Navigation("Role");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("BuildFlow.Api.Models.WorkSchedule", b =>
+                {
+                    b.HasOne("BuildFlow.Api.Models.ConstructionActivity", null)
+                        .WithMany()
+                        .HasForeignKey("ActivityId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("BuildFlow.Api.Models.WorkSchedule", null)
+                        .WithMany()
+                        .HasForeignKey("DependencyId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("BuildFlow.Api.Models.PlanningWorkflow", null)
+                        .WithMany()
+                        .HasForeignKey("WorkflowId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("BuildFlow.Api.Models.Worker", b =>
+                {
+                    b.HasOne("BuildFlow.Api.Models.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("BuildFlow.Api.Models.WorkerAssignment", b =>
+                {
+                    b.HasOne("BuildFlow.Api.Models.Skill", null)
+                        .WithMany()
+                        .HasForeignKey("RequiredSkillId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("BuildFlow.Api.Models.WorkSchedule", null)
+                        .WithMany()
+                        .HasForeignKey("ScheduleId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("BuildFlow.Api.Models.Worker", null)
+                        .WithMany()
+                        .HasForeignKey("WorkerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BuildFlow.Api.Models.WorkerSkill", b =>
+                {
+                    b.HasOne("BuildFlow.Api.Models.Skill", null)
+                        .WithMany()
+                        .HasForeignKey("SkillId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("BuildFlow.Api.Models.Worker", null)
+                        .WithMany()
+                        .HasForeignKey("WorkerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("BuildFlow.Api.Models.AppUser", b =>

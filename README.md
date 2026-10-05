@@ -30,15 +30,20 @@ restricted `SiteEngineer` role.
 React provides public authentication pages, startup session validation, automatic
 token refresh, protected routes, and role-aware navigation. Flutter provides the
 same flow with secure platform token storage, splash restoration, protected home
-navigation, and persisted light/dark/system themes. Business modules and Agentic AI
-execution remain for later milestones.
+navigation, and persisted light/dark/system themes. Construction, inventory,
+procurement, and Member 04 workforce/equipment/scheduling modules are implemented.
+Resource plans run through private downstream agents, backend validation, and
+manager approval before committing bookings, reservations, or purchase orders.
+See [Member 04](backend/BuildFlow.Api/MEMBER04.md) and the
+[implementation and verification report](plan/Implementation_2026-10-04.md).
 
 ## Local development
 
 API (.NET 8 SDK):
 
     dotnet restore backend/BuildFlow.Api/BuildFlow.Api.csproj
-    dotnet ef database update --project backend/BuildFlow.Api
+    dotnet ef database update --context BuildFlowDbContext --project backend/BuildFlow.Api
+    dotnet ef database update --context AppDbContext --project backend/BuildFlow.Api
     dotnet run --project backend/BuildFlow.Api --launch-profile http
 
 Web (Node.js compatible with the installed Vite version):
@@ -57,8 +62,14 @@ Before production, set `ConnectionStrings__DefaultConnection` and `Jwt__Secret`
 through environment or secret configuration. The JWT secret must contain at least
 32 characters. Do not commit production credentials.
 
+Both migration contexts use the configured default connection or an explicit
+`BUILDFLOW_CONNECTION_STRING` override. Apply the contexts in the order above.
+The API runtime uses `ConnectionStrings__DefaultConnection`. Back up an existing
+database and review legacy data before applying migrations; the implementation
+report explains schema reconciliation and historical procurement links.
+
 See each app README for validation and configuration notes. .env.example files
-document future configuration; copy locally when implementing the loaders. Real
+document local configuration. Real
 .env files remain ignored. The API uses appsettings and ASP.NET Core configuration.
 
 ## Architecture and next steps

@@ -14,6 +14,7 @@ class WireModel(BaseModel):
 
 
 class ResourceItem(WireModel):
+    resourceCount: int | None = Field(default=None, ge=1, le=10000)
     kind: Literal["Material", "Equipment", "Workforce"]
     name: str = Field(min_length=2, max_length=160)
     quantity: Decimal = Field(gt=0, le=999999999, allow_inf_nan=False)
@@ -119,7 +120,15 @@ class ProposedPlan(StrictProposalModel):
     analysis: ProposedAnalysis
     steps: list[ProposedStep] = Field(min_length=5, max_length=5)
     tasks: list[ProposedTask] = Field(min_length=3, max_length=3)
-    approvalRequired: Literal[True]
+    # Gemini's SDK cannot encode boolean Literals in its response schema.
+    approvalRequired: bool = Field(strict=True)
+
+    @field_validator("approvalRequired")
+    @classmethod
+    def require_manager_approval(cls, value: bool) -> bool:
+        if not value:
+            raise ValueError("manager approval must be required")
+        return value
 
 
 class AcceptedStep(WireModel):

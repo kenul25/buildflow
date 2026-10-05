@@ -4,11 +4,12 @@ import React from 'react'
 import { render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, expect, test, vi } from 'vitest'
-import InventoryPage from './InventoryPage.jsx'
-import { inventoryService } from './inventoryService.js'
+import InventoryPage from '../features/inventory/InventoryPage.jsx'
+import { inventoryService } from '../features/inventory/inventoryService.js'
 
-vi.mock('../../hooks/useAuth.js', () => ({ useAuth: () => ({ user: { roles: ['InventoryOfficer'] } }) }))
-vi.mock('./inventoryService.js', async (importOriginal) => ({ ...(await importOriginal()), inventoryService: {
+vi.mock('../hooks/useAuth.js', () => ({ useAuth: () => ({ user: { roles: ['InventoryOfficer'] } }) }))
+vi.mock('../services/lookups.js', () => ({ allRows: vi.fn().mockResolvedValue([]) }))
+vi.mock('../features/inventory/inventoryService.js', async (importOriginal) => ({ ...(await importOriginal()), inventoryService: {
   materials: vi.fn(), warehouses: vi.fn(), alerts: vi.fn(), reservations: vi.fn(), movements: vi.fn(),
 } }))
 

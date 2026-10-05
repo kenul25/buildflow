@@ -26,7 +26,8 @@ app = FastAPI(title="BuildFlow internal planning service", docs_url=None, redoc_
 async def limit_body(request: Request, call_next):
     if request.method == "POST":
         body = await request.body()
-        if len(body) > 65536:
+        limit = 1048576 if request.url.path == "/internal/agents" else 65536
+        if len(body) > limit:
             return JSONResponse(status_code=413, content={"error": "request_too_large"})
     return await call_next(request)
 
@@ -63,6 +64,28 @@ async def internal_plan(request: PlanningRequest, planner: PlanningAgent = Depen
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+
+@app.post("/internal/agents", dependencies=[Depends(require_internal_key)])
+async def execute_agent(task: dict):
+    from agents.inventory_agent import InventoryAgent
+    from agents.procurement_agent import ProcurementAgent
+    from agents.scheduling_validation_agent import SchedulingValidationAgent
+    agents = {"InventoryAgent": InventoryAgent(), "ProcurementAgent": ProcurementAgent(), "SchedulingValidationAgent": SchedulingValidationAgent()}
+    agent = agents.get(task.get("agent"))
+    if agent is None:
+        raise HTTPException(status_code=400, detail="unsupported_agent")
+    if task.get("agent") == "InventoryAgent":
+        if task.get("action") != "AnalyzeAvailability" or not isinstance(task.get("input"), dict):
+            raise HTTPException(status_code=400, detail="unsupported_inventory_task")
+        data = task.get("input", {})
+        data["items"] = [{"name": i["name"], "quantity": i["quantity"], "unit": i["unit"]} for i in data.get("items", []) if i.get("kind", "Material") == "Material"]
+        if not data["items"] or data.get("inventorySnapshot") == []:
+            items = [{"name": i["name"], "unit": i["unit"], "requiredQuantity": i["quantity"], "availableQuantity": 0, "shortageQuantity": i["quantity"]} for i in data["items"]]
+            return {"schemaVersion": "1.0", "task_id": task.get("task_id"), "agent": "InventoryAgent", "status": "Completed", "output": {"items": items}, "error": None}
+        result = agent.execute(task)
+        return {"schemaVersion": "1.0", "task_id": result["task_id"], "agent": "InventoryAgent", "status": result["status"], "output": {"items": result.get("materials", [])}, "error": result.get("error")}
+    return agent.execute(task)
 
 
 if __name__ == "__main__":
