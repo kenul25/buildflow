@@ -18,6 +18,7 @@ public sealed class BuildFlowDbContext(DbContextOptions<BuildFlowDbContext> opti
     public DbSet<ResourceRequest> ResourceRequests => Set<ResourceRequest>();
     public DbSet<ResourceRequestItem> ResourceRequestItems => Set<ResourceRequestItem>();
     public DbSet<PlanningWorkflow> PlanningWorkflows => Set<PlanningWorkflow>();
+    public DbSet<NotificationRead> NotificationReads => Set<NotificationRead>();
     public DbSet<Warehouse> Warehouses => Set<Warehouse>();
     public DbSet<Material> Materials => Set<Material>();
     public DbSet<InventoryReservation> InventoryReservations => Set<InventoryReservation>();
@@ -26,6 +27,9 @@ public sealed class BuildFlowDbContext(DbContextOptions<BuildFlowDbContext> opti
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         SchedulingModel.Configure(modelBuilder);
+        var notificationRead = modelBuilder.Entity<NotificationRead>();
+        notificationRead.HasKey(x => new { x.UserId, x.NotificationId });
+        notificationRead.HasOne<AppUser>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
         foreach (var entry in new[] { (typeof(Supplier), "Suppliers"), (typeof(SupplierMaterial), "SupplierMaterials"), (typeof(SupplierQuotation), "SupplierQuotations"), (typeof(PurchaseRequest), "PurchaseRequests"), (typeof(PurchaseOrder), "PurchaseOrders"), (typeof(Delivery), "Deliveries") })
             modelBuilder.Entity(entry.Item1).ToTable(entry.Item2, table => table.ExcludeFromMigrations());
         modelBuilder.Entity<SupplierMaterial>().HasOne(x => x.Supplier).WithMany().HasForeignKey(x => x.SupplierId).OnDelete(DeleteBehavior.Restrict);

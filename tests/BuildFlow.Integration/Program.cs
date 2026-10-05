@@ -19,6 +19,7 @@ using System.Net.Http.Json;
 using System.Net.Sockets;
 using BuildFlow.Api.Configuration;
 using Microsoft.Extensions.Options;
+using System.Security.Claims;
 
 // Always creates its own disposable database. Never migrates the configured application DB.
 var configuration = new ConfigurationBuilder().AddJsonFile(Path.GetFullPath("backend/BuildFlow.Api/appsettings.json"), true)
@@ -81,6 +82,7 @@ try {
             Check(ready, "Isolated API starts successfully");
             Check((await http.GetAsync("PurchaseOrders")).StatusCode == HttpStatusCode.Unauthorized, "Anonymous purchase-order access is denied");
             Check((await http.GetAsync("Deliveries")).StatusCode == HttpStatusCode.Unauthorized, "Anonymous delivery access is denied");
+            Check((await http.GetAsync("notifications")).StatusCode == HttpStatusCode.Unauthorized, "Anonymous notification access is denied");
             Check((await http.PostAsJsonAsync("Procurement/compare", new { materialName = "Cement", requiredQuantity = 1 })).StatusCode == HttpStatusCode.Unauthorized, "Anonymous quotation comparison is denied");
             var testUser = await db.Users.SingleAsync(x => x.Id == actor);
             var tokens = new TokenService(Options.Create(jwt), TimeProvider.System);
@@ -225,6 +227,13 @@ try {
     var executor = new WorkflowExecutionService(db, planner, operations, scheduling, inventory);
     workflow = await executor.ExecuteAsync(workflow.Id, actor, true, default);
     Check(workflow.Status == "PendingProjectManagerApproval", "Agent execution passes backend validation and waits for manager approval");
+    NotificationsController NoticeController(Guid userId, bool manager = false) => new(db, TimeProvider.System) {
+        ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity(new[] { new Claim(ClaimTypes.NameIdentifier, userId.ToString()), new Claim(ClaimTypes.Role, manager ? "ProjectManager" : "SiteEngineer") }, "test")) } }
+    };
+    async Task<JsonElement> NoticeFeed(NotificationsController controller) => JsonSerializer.SerializeToElement(((OkObjectResult)await controller.List(default)).Value);
+    var managerNotice = await NoticeFeed(NoticeController(actor, true));
+    Check(managerNotice.GetProperty("items").EnumerateArray().Any(x => x.GetProperty("Status").GetString() == "PendingProjectManagerApproval"), "Manager notifications include plans awaiting approval");
+    Check(!(await NoticeFeed(NoticeController(actor))).GetProperty("items").EnumerateArray().Any(x => x.GetProperty("Status").GetString() == "PendingProjectManagerApproval"), "Site users do not receive manager-only approval notices");
     Check(!await db.Set<WorkSchedule>().AnyAsync(x => x.WorkflowId == workflow.Id), "Proposal execution creates no bookings before approval");
     var storedWorkflow = await db.PlanningWorkflows.SingleAsync(x => x.Id == workflow.Id);
     var validProposal = storedWorkflow.PlanJson; storedWorkflow.PlanJson = "{\"tasks\":[]}";
@@ -247,6 +256,20 @@ try {
     Check(workflow.Status == "Approved" && await db.Set<WorkSchedule>().AnyAsync(x => x.WorkflowId == workflow.Id && x.Status == "Approved"), "Manager approval creates the validated schedule atomically");
     Check(workflow.Plan?.GetProperty("scheduleAdjustment").GetProperty("startTime").GetDateTimeOffset() == planStart, "Approval records the manager's time adjustment for audit");
     Check((await inventory.GetMaterialAsync(material.Id, default)).ReservedStock == 1, "Manager approval reserves required stock");
+    var siteNotices = NoticeController(actor);
+    var noticeFeed = await NoticeFeed(siteNotices);
+    var approvalNotice = noticeFeed.GetProperty("items").EnumerateArray().Single(x => x.GetProperty("WorkflowId").GetGuid() == workflow.Id);
+    var noticeId = approvalNotice.GetProperty("Id").GetGuid();
+    Check(approvalNotice.GetProperty("Status").GetString() == "Approved" && !approvalNotice.GetProperty("IsRead").GetBoolean(), "Assigned site engineer receives an unread approval notification");
+    await siteNotices.Read(noticeId, default); await siteNotices.Read(noticeId, default);
+    Check((await NoticeFeed(NoticeController(actor))).GetProperty("items").EnumerateArray().Single(x => x.GetProperty("Id").GetGuid() == noticeId).GetProperty("IsRead").GetBoolean(), "Notification read state persists and repeated reads are idempotent");
+    var otherActor = Guid.NewGuid();
+    Check(!(await NoticeFeed(NoticeController(otherActor))).GetProperty("items").EnumerateArray().Any(), "Unrelated site users cannot see another project's notifications");
+    try { await NoticeController(otherActor).Read(noticeId, default); throw new Exception("Unexpected cross-user notification access"); }
+    catch (ApiException ex) when (ex.StatusCode == 404) { Check(true, "Unrelated users cannot mark another project's notification read"); }
+    Check(!(await NoticeFeed(NoticeController(otherActor, true))).GetProperty("items").EnumerateArray().Single(x => x.GetProperty("Id").GetGuid() == noticeId).GetProperty("IsRead").GetBoolean(), "Reading a notification does not mark it read for another manager");
+    await NoticeController(actor, true).ReadAll(default);
+    Check((await NoticeFeed(NoticeController(actor, true))).GetProperty("unreadCount").GetInt32() == 0, "Mark all read clears the user's unread count");
     await Reject(() => executor.DecideAsync(workflow.Id, new("Approved", "Duplicate"), actor, default), "Approval cannot be applied twice");
     var approvedSchedule = await db.Set<WorkSchedule>().SingleAsync(x => x.WorkflowId == workflow.Id);
     foreach (var row in await db.Set<WorkerAssignment>().Where(x => x.ScheduleId == approvedSchedule.Id).ToListAsync()) await scheduling.ArchiveAsync<WorkerAssignment>(row.Id, actor, true, default);
