@@ -1,14 +1,19 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../providers/auth_provider.dart';
 import '../../providers/theme_provider.dart';
 import '../../services/project_service.dart';
-import '../../services/api_service.dart';
+import '../../services/notification_service.dart';
 import '../../services/inventory_service.dart';
 import '../../services/procurement_service.dart';
 import '../../services/scheduling_service.dart';
 import '../scheduling/scheduling_screen.dart';
 import 'operations_navigation.dart';
+import 'home_greeting.dart';
+import 'home_overview.dart';
+import 'notifications_screen.dart';
 import '../projects/quick_request_screen.dart';
 import '../projects/site_engineer_projects_screen.dart';
 import '../projects/site_requests_screen.dart';
@@ -34,9 +39,65 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   int _index = 0;
   static const _labels = ['Home', 'Projects', 'Schedule', 'More'];
+  late final NotificationService notifications;
+  Timer? notificationTimer;
+  int unread = 0;
+  bool loadingNotifications = false;
+  @override
+  void initState() {
+    super.initState();
+    notifications = NotificationService(widget.projectService.api);
+    WidgetsBinding.instance.addObserver(this);
+    refreshNotifications();
+    notificationTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
+        refreshNotifications();
+      }
+    });
+  }
+
+  Future<void> refreshNotifications() async {
+    if (loadingNotifications) return;
+    loadingNotifications = true;
+    try {
+      final result = await notifications.load();
+      if (mounted) {
+        setState(() => unread = (result['unreadCount'] as num).toInt());
+      }
+    } catch (_) {
+      /* The inbox provides an explicit error and retry state. */
+    } finally {
+      loadingNotifications = false;
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) refreshNotifications();
+  }
+
+  @override
+  void dispose() {
+    notificationTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  Future<void> openNotifications() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => NotificationsScreen(
+          service: notifications,
+          projects: widget.projectService,
+        ),
+      ),
+    );
+    if (mounted) await refreshNotifications();
+  }
 
   void _open(String title, Widget page) => Navigator.of(context).push(
     MaterialPageRoute<void>(
@@ -50,10 +111,38 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
-      title: Text(
-        _labels[_index],
-        style: const TextStyle(fontWeight: FontWeight.w800),
-      ),
+      toolbarHeight: _index == 0 ? 76 : null,
+      title: _index == 0
+          ? HomeGreeting(
+              fullName: widget.authProvider.user!.fullName,
+              roles: widget.authProvider.user!.roles,
+            )
+          : Text(
+              _labels[_index],
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+      actions: [
+        Padding(
+          padding: const EdgeInsets.only(right: 16),
+          child: Center(
+            child: Badge(
+              isLabelVisible: unread > 0,
+              backgroundColor: OperationsNavigation.blue,
+              label: Text(unread > 99 ? '99+' : '$unread'),
+              child: IconButton(
+                tooltip: unread > 0
+                    ? 'Notifications, $unread unread'
+                    : 'Notifications',
+                onPressed: openNotifications,
+                icon: const Icon(
+                  Icons.notifications_none_rounded,
+                  color: OperationsNavigation.blue,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     ),
     body: SafeArea(child: _page()),
     floatingActionButton: RequestActionButton(
@@ -71,9 +160,10 @@ class _HomeScreenState extends State<HomeScreen> {
   );
 
   Widget _page() => switch (_index) {
-    0 => _Overview(
-      userName: widget.authProvider.user!.fullName,
+    0 => HomeOverview(
       api: widget.projectService.api,
+      onProjects: () => setState(() => _index = 1),
+      onSchedule: () => setState(() => _index = 2),
     ),
     1 => SiteEngineerProjectsScreen(service: widget.projectService),
     2 => SchedulingScreen(
@@ -148,119 +238,6 @@ class _HomeScreenState extends State<HomeScreen> {
       subtitle: Text(subtitle),
       trailing: const Icon(Icons.chevron_right),
       onTap: onTap,
-    ),
-  );
-}
-
-class _Overview extends StatefulWidget {
-  const _Overview({required this.userName, required this.api});
-  final String userName;
-  final ApiService api;
-  @override
-  State<_Overview> createState() => _OverviewState();
-}
-
-class _OverviewState extends State<_Overview> {
-  late Future<dynamic> _summary;
-  @override
-  void initState() {
-    super.initState();
-    _summary = widget.api.request('GET', '/dashboard');
-  }
-
-  @override
-  Widget build(BuildContext context) => FutureBuilder<dynamic>(
-    future: _summary,
-    builder: (context, snapshot) {
-      final data = snapshot.data as Map<String, dynamic>?;
-      return ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          Text(
-            'Good day, ${widget.userName.split(' ').first}',
-            style: Theme.of(context).textTheme.headlineSmall,
-          ),
-          const SizedBox(height: 12),
-          const Text('Your current site operations summary.'),
-          if (snapshot.hasError) Text('${snapshot.error}'),
-          TextButton(
-            onPressed: () => setState(
-              () => _summary = widget.api.request('GET', '/dashboard'),
-            ),
-            child: const Text('Refresh'),
-          ),
-          GridView.count(
-            crossAxisCount: 2,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 12,
-            childAspectRatio: 1.25,
-            children: [
-              _SummaryCard(
-                label: 'Active projects',
-                value: '${data?['activeProjects'] ?? '…'}',
-                icon: Icons.apartment,
-              ),
-              _SummaryCard(
-                label: 'Active activities',
-                value: '${data?['activeActivities'] ?? '…'}',
-                icon: Icons.task_alt,
-              ),
-              _SummaryCard(
-                label: 'Pending requests',
-                value: '${data?['pendingRequests'] ?? '…'}',
-                icon: Icons.pending_actions,
-              ),
-              _SummaryCard(
-                label: 'Approved plans',
-                value: '${data?['approvedPlans'] ?? '…'}',
-                icon: Icons.verified_outlined,
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          const Card(
-            child: ListTile(
-              leading: Icon(Icons.construction),
-              title: Text('Site operations'),
-              subtitle: Text(
-                'Use + to create a request, Projects for progress, Schedule for assignments, and More for materials and deliveries.',
-              ),
-            ),
-          ),
-        ],
-      );
-    },
-  );
-}
-
-class _SummaryCard extends StatelessWidget {
-  const _SummaryCard({
-    required this.label,
-    required this.value,
-    required this.icon,
-  });
-  final String label;
-  final String value;
-  final IconData icon;
-  @override
-  Widget build(BuildContext context) => Card(
-    child: Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: Theme.of(context).colorScheme.primary),
-          const Spacer(),
-          Text(
-            value,
-            style: Theme.of(context).textTheme.headlineSmall
-                ?.copyWith(fontWeight: FontWeight.w800),
-          ),
-          Text(label, style: Theme.of(context).textTheme.bodySmall),
-        ],
-      ),
     ),
   );
 }
