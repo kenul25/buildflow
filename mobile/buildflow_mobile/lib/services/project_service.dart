@@ -69,6 +69,28 @@ class ProjectService {
       await api.request('GET', '/construction/resource-requests/$requestId')
           as Map<String, dynamic>;
 
+  Future<void> editRequest(String id, Map<String, dynamic> body) async =>
+      api.request('PUT', '/construction/resource-requests/$id', body: body);
+  Future<void> deleteRequest(String id) async =>
+      api.request('DELETE', '/construction/resource-requests/$id');
+  Future<void> editProgress(
+    String activityId,
+    String id,
+    int percent,
+    String work,
+    String? blockers,
+  ) async => api.request(
+    'PUT',
+    '/construction/activities/$activityId/progress/$id',
+    body: {
+      'progressPercent': percent,
+      'workCompleted': work,
+      'blockers': blockers,
+    },
+  );
+  Future<void> removeProgress(String activityId, String id) async => api
+      .request('DELETE', '/construction/activities/$activityId/progress/$id');
+
   Future<Map<String, dynamic>> startPlanning(String requestId) async {
     final workflow = await api.request(
       'POST',

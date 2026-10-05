@@ -179,13 +179,15 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
+    await tester.tap(find.text('Requests'));
+    await tester.pumpAndSettle();
     final fields = find.byType(TextField);
-    final objectiveRect = tester.getRect(fields.at(2));
+    final objectiveRect = tester.getRect(fields.at(0));
     final dropdownRect = tester.getRect(
       find.byType(DropdownButtonFormField<String>),
     );
-    final quantityRect = tester.getRect(fields.at(4));
-    final unitRect = tester.getRect(fields.at(5));
+    final quantityRect = tester.getRect(fields.at(2));
+    final unitRect = tester.getRect(fields.at(3));
     expect(dropdownRect.top - objectiveRect.bottom, greaterThanOrEqualTo(12));
     expect(unitRect.top, greaterThan(quantityRect.bottom));
     await tester.ensureVisible(find.text('Submit and start planning'));
@@ -212,9 +214,11 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    await tester.tap(find.text('Requests'));
+    await tester.pumpAndSettle();
     final fields = find.byType(TextField);
-    final quantityRect = tester.getRect(fields.at(4));
-    final unitRect = tester.getRect(fields.at(5));
+    final quantityRect = tester.getRect(fields.at(2));
+    final unitRect = tester.getRect(fields.at(3));
     expect(unitRect.top, quantityRect.top);
     expect(tester.takeException(), isNull);
   });
@@ -257,6 +261,8 @@ void main() {
         ),
       ),
     );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Requests'));
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Submit and start planning'));
     await tester.pumpAndSettle();
