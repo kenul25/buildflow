@@ -121,8 +121,4 @@ class ProjectService {
       'blockers': blockers,
     },
   )) as Map<String, dynamic>;
-
-  Future<void> uploadPhoto(String activityId, String path) async {
-    await api.upload('/construction/activities/$activityId/photos', path);
-  }
 }
