@@ -72,6 +72,13 @@ See each app README for validation and configuration notes. .env.example files
 document local configuration. Real
 .env files remain ignored. The API uses appsettings and ASP.NET Core configuration.
 
+## Backend testing
+
+The member-organized xUnit project is `tests/BuildFlow.Api.Tests`.
+See [backend testing instructions](tests/BuildFlow.Api.Tests/README.md) for unit/API/PostgreSQL
+commands, member filters, CI artifacts, and [verified local results](tests/BuildFlow.Api.Tests/RESULTS.md).
+The root `BuildFlow.sln` includes the API and both backend testing projects.
+
 ## Architecture and next steps
 
 Flutter/React → ASP.NET Core → PostgreSQL and the internal Python agent service.

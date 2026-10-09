@@ -44,3 +44,5 @@ Thumbs.db
 
 # BuildFlow API tests stay local on this feature branch
 backend/BuildFlow.Api.Tests/
+.vercel
+.env*
