@@ -1,4 +1,8 @@
+import sys
 import unittest
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from agents.inventory_agent import InventoryAgent, analyze_availability
 from tools.inventory_tools import InventoryAnalysisError
