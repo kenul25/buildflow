@@ -34,14 +34,23 @@ jobs:
       - run: dotnet restore tests/BuildFlow.Integration/BuildFlow.Integration.csproj
       - run: dotnet build tests/BuildFlow.Integration/BuildFlow.Integration.csproj --no-restore --configuration Release
       - run: dotnet tests/BuildFlow.Integration/bin/Release/net8.0/BuildFlow.Integration.dll
-      # Test projects will be discovered as feature tests are added.
-      - name: Run backend test projects
-        shell: pwsh
-        run: |
-          Get-ChildItem backend -Recurse -Filter '*Tests.csproj' | ForEach-Object {
-            dotnet test $_.FullName --configuration Release
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          }
+      - run: dotnet restore tests/BuildFlow.Api.Tests/BuildFlow.Api.Tests.csproj
+      - name: Build backend test project
+        id: backend-build
+        run: dotnet build tests/BuildFlow.Api.Tests/BuildFlow.Api.Tests.csproj --no-restore --configuration Release
+      - name: Run backend unit tests
+        run: dotnet test tests/BuildFlow.Api.Tests/BuildFlow.Api.Tests.csproj --no-build --configuration Release --filter "Category=Unit" --logger "trx;LogFileName=unit.trx" --results-directory .artifacts/test-results/backend
+      - name: Run backend API and PostgreSQL integration tests
+        if: ${{ !cancelled() && steps.backend-build.outcome == 'success' }}
+        run: dotnet test tests/BuildFlow.Api.Tests/BuildFlow.Api.Tests.csproj --no-build --configuration Release --filter "Category=Integration" --logger "trx;LogFileName=integration.trx" --results-directory .artifacts/test-results/backend
+      - name: Upload backend test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-results
+          path: .artifacts/test-results/backend/*.trx
+          include-hidden-files: true
+          if-no-files-found: warn
 
   frontend:
     runs-on: ubuntu-latest
